@@ -27,7 +27,7 @@ case class ReadBuffer(data: ByteBuffer) extends AnyVal with Encoder {
     */
   def next(): Byte = data.get
 
-  def encode(out: DataOutBuffer) {
+  def encode(out: WriteBuffer) {
     out.write(this)
   }
 

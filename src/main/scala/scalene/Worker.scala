@@ -16,23 +16,19 @@ sealed trait WorkerMessage
 
 private[this] case object Select extends WorkerMessage
 
+
+
 trait ConnectionHandler {
+
+  def onInitialize()
 
   def onReadData(buffer: ReadBuffer)
 
   def onWriteData(buffer: WriteBuffer)
 
-  def onConnected()
+  def onConnected(handle: ConnectionHandle)
 
-  def onConnectionTerminated()
-
-}
-
-class OutputManager
-
-class ConnectionManager(val handler: ConnectionHandler) {
-
-
+  def onDisconnected()
 
 }
 
@@ -40,7 +36,8 @@ trait ServerConnectionHandler extends ConnectionHandler
 
 class ServerWorker(
   server: Actor[WorkerToServerMessage],
-  handlerFactory: ConnectionContext => ServerConnectionHandler)  extends BasicReceiver[WorkerMessage] with Logging {
+  handlerFactory: ConnectionContext => ServerConnectionHandler)  
+  extends BasicReceiver[WorkerMessage] with Logging {
 
 
   private val selector = Selector.open()
