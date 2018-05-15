@@ -11,12 +11,8 @@ trait WriteBuffer {
 
   protected def copyDestination(bytesNeeded: Long): ByteBuffer
 
-  def write(from: ByteBuffer) {
-    copyDestination(from.remaining).put(from)
-  }
-
-  def write(from: DataBuffer) {
-    write(from.data)
+  def write(from: ReadBuffer) {
+    copyDestination(from.remaining).put(from.data)
   }
 
   def write(bytes: Array[Byte]) {
@@ -43,6 +39,13 @@ trait WriteBuffer {
 
 }
 
+trait ReadWriteBuffer extends WriteBuffer {
+
+  def size: Int
+  def data: ReadBuffer
+
+}
+
 /**
   * A ByteBuffer-backed growable buffer.  A fixed-size direct buffer is used for
   * most of the time, but overflows are written to a eponentially growing
@@ -52,7 +55,7 @@ trait WriteBuffer {
   * Be aware, the DataBuffer returned from `data` merely wraps the underlying
   * buffer to avoid copying
   */
-class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends WriteBuffer {
+class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends ReadWriteBuffer {
 
   private val base = if (allocateDirect) {
     ByteBuffer.allocateDirect(baseSize)

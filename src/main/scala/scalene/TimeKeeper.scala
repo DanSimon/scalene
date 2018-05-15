@@ -3,7 +3,7 @@ package scalene
 trait TimeKeeper {
   def nowMillis : Long
 
-  def apply = nowMillis
+  def apply() = nowMillis
 }
 
 class RealTimeKeeper extends TimeKeeper {

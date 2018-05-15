@@ -10,9 +10,16 @@ import scala.concurrent.duration._
 import scala.util.Try
 import scala.util.control.NonFatal
 
+import microactor._
+
 class ConnectionContext
 
 sealed trait WorkerMessage
+object WorkerMessage {
+  case class NewConnection(channel: SocketChannel)
+}
+
+sealed trait WorkerToServerMessage
 
 private[this] case object Select extends WorkerMessage
 
@@ -44,12 +51,12 @@ class ServerWorker(
 
   private val readBuffer = ByteBuffer.allocateDirect(1024 * 128)
 
-  private val writeBufferBuffer = new WriteBufferImpl(1024 * 1024 * 4)
+  private val writeBuffer = new WriteBufferImpl(1024 * 1024 * 4)
 
   private val activeConnections = collection.mutable.Map[Long, ConnectionManager]()
 
 
-  override def onStart(context: Context[WorkerMessage] {
+  override def onStart(context: Context[WorkerMessage]) {
     super.onStart(context)
     context.self.send(Select)
   }
@@ -57,7 +64,7 @@ class ServerWorker(
   def receive(message: WorkerMessage) = message match {
     case Select => {
       select()
-      context.send(Select)
+      context.self.send(Select)
     }
   }
 
@@ -71,65 +78,41 @@ class ServerWorker(
       if (!key.isValid) {
         error("KEY IS INVALID")
       } else if (key.isConnectable) {
-        val con = key.attachment.asInstanceOf[ClientConnection]
+        val con = key.attachment.asInstanceOf[ConnectionManager]
         try {
-          con.handleConnected()
+          con.finishConnect()
         } catch {
           case t: Throwable => {
-            unregisterConnection(con, DisconnectCause.ConnectFailed(t))
+            //unregisterConnection(con, DisconnectCause.ConnectFailed(t))
             key.cancel()
           }
         }
       } else {
         if (key.isReadable) {
-          // Read the data
-          buffer.clear
+          readBuffer.clear
           val sc: SocketChannel = key.channel().asInstanceOf[SocketChannel]
           try {
-            val len = sc.read(buffer)
+            val len = sc.read(readBuffer)
             if (len > -1) {
-              key.attachment match {
-                case connection: Connection => {
-                  buffer.flip
-                  val data = DataBuffer(buffer, len)
-                  connection.handleRead(data)
-                } //end case
-              }
+              readBuffer.flip
+              val buffer = ReadBuffer(readBuffer, len)
+              key.attachment.asInstanceOf[ConnectionManager].onRead(buffer)
             } else {
-              //reading -1 bytes means the connection has been closed
-              key.attachment match {
-                case c: Connection => {
-                  unregisterConnection(c, DisconnectCause.Closed)
-                  key.cancel()
-                }
-              }
+              //unregisterConnection(c, DisconnectCause.Closed)
+              key.cancel()
             }
           } catch {
             case t: java.io.IOException => {
-              key.attachment match {
-                case c: Connection => {
-                  //connection reset by peer, sometimes thrown by read when the connection closes
-                  unregisterConnection(c, DisconnectCause.Closed)
-                }
-              }
+                  //unregisterConnection(c, DisconnectCause.Closed)
               sc.close()
               key.cancel()
             }
             case t: Throwable => {
               warn(s"Unknown Error! : ${t.getClass.getName}: ${t.getMessage}")
-              if (trace) {
-                t.printStackTrace()
-              }
-              //close the connection to ensure it's not in an undefined state
-              key.attachment match {
-                case c: Connection => {
+              /*
                   warn(s"closing connection ${c.id} due to unknown error")
                   unregisterConnection(c, DisconnectCause.Error(t))
-                }
-                case other => {
-                  error(s"Key has bad attachment!! $other")
-                }
-              }
+                  */
               sc.close()
               key.cancel()
             }
@@ -137,21 +120,15 @@ class ServerWorker(
         }
         //have to test for valid here since it could have just been cancelled above
         if (key.isValid && key.isWritable) {
-          key.attachment match {
-            case c: Connection =>
-              try {
-                c.handleWrite(outputBuffer)
-                outputBuffer.reset()
-              } catch {
-                case j: java.io.IOException => {
-                  unregisterConnection(c, DisconnectCause.Error(j))
-                }
-                case other: Throwable => {
-                  warn(s"Error handling write: ${other.getClass.getName} : ${other.getMessage}")
-                }
-              }
-            case _ => {}
+          val manager = key.attachment.asInstanceOf[ConnectionManager]
+          try {
+                manager.onWrite(writeBuffer)
+          } catch {
+            case j: java.io.IOException => {
+              //unregisterConnection(c, DisconnectCause.Error(j))
+            }
           }
+          writeBuffer.reset()
         }
       }
       it.remove()

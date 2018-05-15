@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 
 
-trait Encoder {
+trait Encoder extends Any {
   def encode(out: WriteBuffer)
 }
 
