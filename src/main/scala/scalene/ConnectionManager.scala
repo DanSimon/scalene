@@ -38,7 +38,7 @@ trait ConnectionHandle extends ConnectionInfo {
 
 }
 
-abstract class ConnectionManager(
+class ConnectionManager(
   val id: Long,
   val handler: ConnectionHandler,
   val channel: ChannelHandle)
@@ -74,6 +74,9 @@ abstract class ConnectionManager(
     channel.enableReads
   }
 
+  def remoteAddress: Option[java.net.InetSocketAddress] = channel.remoteAddress
+  def state: scalene.ConnectionState = channel.state
+
 
   def timeIdle = channel.time() - math.max(lastReadTime, lastWriteTime)
 
@@ -91,6 +94,7 @@ abstract class ConnectionManager(
     _bytesWritten = buffer.size
     //TODO : overflow
     channel.write(buffer.data)
+    channel.disableWriteReady()
   }
 
   def onConnected() : Unit = handler.onConnected(this)

@@ -15,11 +15,12 @@ import microactor._
 class ConnectionContext
 
 sealed trait WorkerMessage
-object WorkerMessage {
-  case class NewConnection(channel: SocketChannel)
+
+sealed trait ServerToWorkerMessage extends WorkerMessage
+object ServerToWorkerMessage {
+  case class NewConnection(channel: SocketChannel) extends ServerToWorkerMessage
 }
 
-sealed trait WorkerToServerMessage
 
 private[this] case object Select extends WorkerMessage
 
@@ -43,8 +44,11 @@ trait ServerConnectionHandler extends ConnectionHandler
 
 class ServerWorker(
   server: Actor[WorkerToServerMessage],
-  handlerFactory: ConnectionContext => ServerConnectionHandler)  
-  extends BasicReceiver[WorkerMessage] with Logging {
+  handlerFactory: ConnectionContext => ServerConnectionHandler,
+  timeKeeper: TimeKeeper
+) extends BasicReceiver[WorkerMessage] with Logging {
+
+  println("new worker")
 
 
   private val selector = Selector.open()
@@ -54,6 +58,12 @@ class ServerWorker(
   private val writeBuffer = new WriteBufferImpl(1024 * 1024 * 4)
 
   private val activeConnections = collection.mutable.Map[Long, ConnectionManager]()
+
+  private var _nextId = 0L
+  private def nextId() = {
+    _nextId += 1
+    _nextId
+  }
 
 
   override def onStart(context: Context[WorkerMessage]) {
@@ -66,15 +76,20 @@ class ServerWorker(
       select()
       context.self.send(Select)
     }
+    case ServerToWorkerMessage.NewConnection(channel) => {
+      val key = channel.register(selector, SelectionKey.OP_READ)
+      val handle = new LiveChannelHandle(channel, key, timeKeeper)
+      val manager = new ConnectionManager(nextId(), handlerFactory(new ConnectionContext), handle)
+      activeConnections(manager.id) = manager
+    }
   }
 
   private def select() {
     selector.select(1) //need short wait times to register new connections
-    implicit val TIME = System.currentTimeMillis
-    val selectedKeys  = selector.selectedKeys()
-    val it            = selectedKeys.iterator()
-    while (it.hasNext) {
-      val key: SelectionKey = it.next
+    timeKeeper.refresh()
+    val selectedKeys  = selector.selectedKeys.iterator
+    while (selectedKeys.hasNext) {
+      val key: SelectionKey = selectedKeys.next
       if (!key.isValid) {
         error("KEY IS INVALID")
       } else if (key.isConnectable) {
@@ -131,7 +146,7 @@ class ServerWorker(
           writeBuffer.reset()
         }
       }
-      it.remove()
+      selectedKeys.remove()
 
     }
 

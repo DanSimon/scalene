@@ -17,6 +17,8 @@ trait ChannelHandle {
 
   def time: TimeKeeper
 
+  def state: ConnectionState
+
 
   private var _readsEnabled      = true
   private var _writeReadyEnabled = false
