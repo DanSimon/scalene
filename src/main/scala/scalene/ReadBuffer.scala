@@ -99,6 +99,8 @@ case class ReadBuffer(data: ByteBuffer) extends AnyVal with Encoder {
   /** Returns true if this ReadBuffer still has unread data, false otherwise */
   def hasNext = data.hasRemaining
 
+  def isEmpty = !hasNext
+
   /** Returns true if this ReadBuffer still has unread data, false otherwise */
   def hasUnreadData = data.hasRemaining
 

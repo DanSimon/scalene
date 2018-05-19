@@ -24,12 +24,14 @@ object Main extends App {
     var _handle: Option[ConnectionHandle] = None
 
     def onReadData(buffer: ReadBuffer) {
-      temp = new String(buffer.takeAll)
+      val s = (new String(buffer.takeAll)).trim()
+      temp = s"""you sent "$s"\n"""
       _handle.get.requestWrite()
     }
 
-    def onWriteData(buffer: WriteBuffer) {
+    def onWriteData(buffer: WriteBuffer) = {
       buffer.write(temp.getBytes())
+      false
     }
 
     def onConnected(handle: ConnectionHandle) {

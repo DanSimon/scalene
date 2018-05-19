@@ -96,6 +96,7 @@ class Server(
   def receive(s: ServerMessage) : Unit = s match {
     case SelectNow => {
       select()
+      context.self.send(SelectNow)
     }
   }
 
@@ -114,6 +115,7 @@ class Server(
           val serverSocketChannel: ServerSocketChannel = key.channel.asInstanceOf[ServerSocketChannel]
           val sc: SocketChannel        = serverSocketChannel.accept()
           if (openConnections < settings.maxConnections) {
+            println("NEW CONNECTION")
             openConnections += 1
             sc.configureBlocking(false)
             sc.socket.setTcpNoDelay(true)

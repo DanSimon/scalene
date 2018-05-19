@@ -45,6 +45,7 @@ class ConnectionManager(
   extends ConnectionHandle {
 
   val startTime = channel.time()
+  private var writeOverflowBuffer: Option[ReadBuffer] = None
 
   private var _bytesRead      = 0L
   private var _bytesWritten   = 0L
@@ -90,11 +91,28 @@ class ConnectionManager(
 
   def onWrite(buffer: ReadWriteBuffer): Unit = {
     _lastWriteTime = channel.time()
-    handler.onWriteData(buffer)
-    _bytesWritten = buffer.size
-    //TODO : overflow
-    channel.write(buffer.data)
-    channel.disableWriteReady()
+    writeOverflowBuffer match {
+      case Some(overflow) => {
+        _bytesWritten += channel.write(overflow)
+        if (overflow.isEmpty) {
+          writeOverflowBuffer = None
+          //do not disable writeReady here, give the handler a chance to write
+        }
+      }
+      case None => {
+        val hasMoreToWrite = handler.onWriteData(buffer)
+        val readBuffer = buffer.data
+        _bytesWritten += channel.write(readBuffer)
+        if (readBuffer.isEmpty) {
+          if (!hasMoreToWrite) {
+            channel.disableWriteReady()
+          }
+        } else {
+          writeOverflowBuffer = Some(readBuffer.takeCopy)
+        }
+
+      }
+    }
   }
 
   def onConnected() : Unit = handler.onConnected(this)
