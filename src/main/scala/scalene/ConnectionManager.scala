@@ -122,7 +122,7 @@ class ConnectionManager(
     onConnected()
   }
 
-  def onDisconnected() = handler.onDisconnected()
+  def onDisconnected(reason: DisconnectReason) = handler.onDisconnected(reason)
 
 }
 

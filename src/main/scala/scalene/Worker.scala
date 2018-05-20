@@ -26,19 +26,6 @@ private[this] case object Select extends WorkerMessage
 
 
 
-trait ConnectionHandler {
-
-  def onInitialize()
-
-  def onReadData(buffer: ReadBuffer)
-
-  def onWriteData(buffer: WriteBuffer): Boolean
-
-  def onConnected(handle: ConnectionHandle)
-
-  def onDisconnected()
-
-}
 
 trait ServerConnectionHandler extends ConnectionHandler
 
@@ -47,8 +34,6 @@ class ServerWorker(
   handlerFactory: ConnectionContext => ServerConnectionHandler,
   timeKeeper: TimeKeeper
 ) extends BasicReceiver[WorkerMessage] with Logging {
-
-  println("new worker")
 
 
   private val selector = Selector.open()
@@ -65,9 +50,7 @@ class ServerWorker(
     _nextId
   }
 
-
   override def onStart(context: Context[WorkerMessage]) {
-    println("worker start")
     super.onStart(context)
     context.self.send(Select)
   }
@@ -78,7 +61,6 @@ class ServerWorker(
       context.self.send(Select)
     }
     case ServerToWorkerMessage.NewConnection(channel) => {
-      println("WORKER GOT CONNECTION")
       val key = channel.register(selector, SelectionKey.OP_READ)
       val handle = new LiveChannelHandle(channel, key, timeKeeper)
       val manager = new ConnectionManager(nextId(), handlerFactory(new ConnectionContext), handle)
@@ -89,12 +71,17 @@ class ServerWorker(
     }
   }
 
+  private def removeConnection(manager: ConnectionManager, reason: DisconnectReason): Unit = {
+    activeConnections.remove(manager.id)
+    manager.onDisconnected(reason)
+    server.send(WorkerToServerMessage.ConnectionClosed)
+  }
+
   private def select() {
     selector.select(1) //need short wait times to register new connections
     timeKeeper.refresh()
     val selectedKeys  = selector.selectedKeys.iterator
     while (selectedKeys.hasNext) {
-      println("doin a select")
       val key: SelectionKey = selectedKeys.next
       if (!key.isValid) {
         error("KEY IS INVALID")
@@ -104,8 +91,7 @@ class ServerWorker(
           con.finishConnect()
         } catch {
           case t: Throwable => {
-            println(t.toString)
-            //unregisterConnection(con, DisconnectCause.ConnectFailed(t))
+            removeConnection(con, DisconnectReason.ClientConnectFailed(t))
             key.cancel()
           }
         }
@@ -113,44 +99,38 @@ class ServerWorker(
         if (key.isReadable) {
           readBuffer.clear
           val sc: SocketChannel = key.channel().asInstanceOf[SocketChannel]
+          val manager = key.attachment.asInstanceOf[ConnectionManager]
           try {
             val len = sc.read(readBuffer)
             if (len > -1) {
               readBuffer.flip
               val buffer = ReadBuffer(readBuffer, len)
-              key.attachment.asInstanceOf[ConnectionManager].onRead(buffer)
+              manager.onRead(buffer)
             } else {
-              //unregisterConnection(c, DisconnectCause.Closed)
-              println("closed")
+              removeConnection(manager, DisconnectReason.RemoteClosed)
               key.cancel()
             }
           } catch {
             case t: java.io.IOException => {
-                  //unregisterConnection(c, DisconnectCause.Closed)
-                  println(t.toString)
+              removeConnection(manager, DisconnectReason.RemoteClosed)
               sc.close()
               key.cancel()
             }
             case t: Throwable => {
               warn(s"Unknown Error! : ${t.getClass.getName}: ${t.getMessage}")
-                  //warn(s"closing connection ${c.id} due to unknown error")
-              /*
-                  unregisterConnection(c, DisconnectCause.Error(t))
-                  */
+              removeConnection(manager, DisconnectReason.Error(t))
               sc.close()
               key.cancel()
             }
           }
         }
-        //have to test for valid here since it could have just been cancelled above
         if (key.isValid && key.isWritable) {
           val manager = key.attachment.asInstanceOf[ConnectionManager]
           try {
                 manager.onWrite(writeBuffer)
           } catch {
-            case j: java.io.IOException => {
-              println(j.toString)
-              //unregisterConnection(c, DisconnectCause.Error(j))
+            case e: java.io.IOException => {
+              removeConnection(manager, DisconnectReason.Error(e))
             }
           }
           writeBuffer.reset()
@@ -161,7 +141,5 @@ class ServerWorker(
     }
 
   }
-
-
 
 }

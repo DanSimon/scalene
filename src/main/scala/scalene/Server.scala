@@ -12,13 +12,17 @@ case class ServerSettings(
   numWorkers: Option[Int]
 )
 
-trait ServerMessage
+sealed trait ServerMessage
 
 trait ExternalServerMessage extends ServerMessage
 object ExternalServerMessage {
   case object Shutdown extends ExternalServerMessage
 }
+
 sealed trait WorkerToServerMessage extends ServerMessage
+object WorkerToServerMessage {
+  case object ConnectionClosed extends WorkerToServerMessage
+}
 
 private[this] case object SelectNow extends ServerMessage
 
@@ -97,6 +101,9 @@ class Server(
     case SelectNow => {
       select()
       context.self.send(SelectNow)
+    }
+    case WorkerToServerMessage.ConnectionClosed => {
+      openConnections -= 1
     }
   }
 

@@ -40,8 +40,8 @@ object Main extends App {
 
     }
 
-    def onDisconnected() {
-      println("disconnected")
+    def onDisconnected(reason: DisconnectReason) {
+      println(s"disconnected: $reason")
     }
 
   }
