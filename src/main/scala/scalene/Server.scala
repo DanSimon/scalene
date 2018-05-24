@@ -122,7 +122,7 @@ class Server(
           val serverSocketChannel: ServerSocketChannel = key.channel.asInstanceOf[ServerSocketChannel]
           val sc: SocketChannel        = serverSocketChannel.accept()
           if (openConnections < settings.maxConnections) {
-            println("NEW CONNECTION")
+            //println("NEW CONNECTION")
             openConnections += 1
             sc.configureBlocking(false)
             sc.socket.setTcpNoDelay(true)

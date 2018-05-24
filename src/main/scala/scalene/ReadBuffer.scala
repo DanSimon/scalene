@@ -8,13 +8,6 @@ trait Encoder extends Any {
   def encode(out: WriteBuffer)
 }
 
-/** A thin wrapper around a NIO ByteBuffer with data to read
-  *
-  * ReadBuffers are the primary way that data is read from and written to a
-  * connection.  ReadBuffers are mutable and not thread safe.  They can only be
-  * read from once and cannot be reset.
-  *
-  */
 case class ReadBuffer(data: ByteBuffer) extends AnyVal with Encoder {
 
   /** Get the next byte, removing it from the buffer
@@ -104,13 +97,15 @@ case class ReadBuffer(data: ByteBuffer) extends AnyVal with Encoder {
   /** Returns true if this ReadBuffer still has unread data, false otherwise */
   def hasUnreadData = data.hasRemaining
 
-  def remaining = data.remaining
+  def remaining = data.remaining()
 
   /** Returns how many bytes have already been read from this ReadBuffer */
-  def taken = data.position
+  def taken = data.position()
 
   /** Returns the total size of this ReadBuffer */
-  def size = data.limit
+  def size = data.limit()
+
+  def clear() = data.clear()
 
 }
 

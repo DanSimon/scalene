@@ -31,6 +31,22 @@ trait WriteBuffer {
     write(char.toByte)
   }
 
+  def write(number: Int) {
+    if (number == 0) {
+      write('0'.toByte)
+    } else {
+      val arr   = new Array[Byte](10)
+      var r     = number
+      var index = 9
+      while (r > 0) {
+        arr(index) = ((r % 10) + 48).toByte
+        r = r / 10
+        index -= 1
+      }
+      write(arr, index + 1, 10 - (index + 1))
+    }
+  }
+
   /*
   def write(block: DataBlock) {
     write(block.data)
@@ -46,15 +62,6 @@ trait ReadWriteBuffer extends WriteBuffer {
 
 }
 
-/**
-  * A ByteBuffer-backed growable buffer.  A fixed-size direct buffer is used for
-  * most of the time, but overflows are written to a eponentially growing
-  * non-direct buffer.
-  *
-  *
-  * Be aware, the DataBuffer returned from `data` merely wraps the underlying
-  * buffer to avoid copying
-  */
 class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends ReadWriteBuffer {
 
   private val base = if (allocateDirect) {
@@ -65,7 +72,7 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
 
   private var dyn: Option[ByteBuffer] = if (allocateDirect) None else Some(base)
 
-  def size = dyn.map { _.position }.getOrElse(base.position)
+  def size = dyn.map { _.position() }.getOrElse(base.position)
 
   def isOverflowed: Boolean = dyn.isDefined
 
