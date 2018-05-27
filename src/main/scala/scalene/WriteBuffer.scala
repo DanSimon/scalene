@@ -60,6 +60,8 @@ trait ReadWriteBuffer extends WriteBuffer {
   def size: Int
   def data: ReadBuffer
 
+  def isEmpty = size == 0
+
 }
 
 class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends ReadWriteBuffer {
@@ -72,7 +74,7 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
 
   private var dyn: Option[ByteBuffer] = if (allocateDirect) None else Some(base)
 
-  def size = dyn.map { _.position() }.getOrElse(base.position)
+  def size = if (dyn.isDefined) dyn.get.position() else base.position
 
   def isOverflowed: Boolean = dyn.isDefined
 

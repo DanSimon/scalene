@@ -105,7 +105,7 @@ class ServerWorker(
             if (len > -1) {
               readBuffer.flip
               val buffer = ReadBuffer(readBuffer, len)
-              manager.onRead(buffer)
+              manager.onRead(buffer, writeBuffer)
             } else {
               removeConnection(manager, DisconnectReason.RemoteClosed)
               key.cancel()

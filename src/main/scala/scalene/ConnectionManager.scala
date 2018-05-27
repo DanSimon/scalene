@@ -83,10 +83,11 @@ class ConnectionManager(
 
   def onInitialize(): Unit = handler.onInitialize()
 
-  def onRead(buffer: ReadBuffer): Unit = {
+  def onRead(buffer: ReadBuffer, wrt: ReadWriteBuffer): Unit = {
     _lastReadTime = channel.time()
     _bytesRead = buffer.size
     handler.onReadData(buffer)
+    //onWrite(wrt)
   }
 
   def onWrite(buffer: ReadWriteBuffer): Unit = {
@@ -100,17 +101,16 @@ class ConnectionManager(
         }
       }
       case None => {
-        val hasMoreToWrite = handler.onWriteData(buffer)
-        val readBuffer = buffer.data
-        _bytesWritten += channel.write(readBuffer)
-        if (readBuffer.isEmpty) {
-          if (!hasMoreToWrite) {
-            channel.disableWriteReady()
+        handler.onWriteData(buffer)
+        if (!buffer.isEmpty) {
+          val readBuffer = buffer.data
+          _bytesWritten += channel.write(readBuffer)
+          if (!readBuffer.isEmpty) {
+            writeOverflowBuffer = Some(readBuffer.takeCopy)
           }
         } else {
-          writeOverflowBuffer = Some(readBuffer.takeCopy)
+          channel.disableWriteReady()
         }
-
       }
     }
   }

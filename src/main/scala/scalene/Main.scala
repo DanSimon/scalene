@@ -1,6 +1,7 @@
 package scalene
 
-import java.util.Arrays
+import java.nio.ByteBuffer
+import java.util.{Arrays, LinkedList}
 import microactor.Pool
 
 object Main extends App {
@@ -18,7 +19,10 @@ object Main extends App {
   val SPACE_BYTE = ' '.toByte
 
   class Method(val name: String) {
-    val bytes = name.getBytes
+    val bytes = name.getBytes   
+
+    val lFirst = bytes(0)
+    val uFirst = name.toUpperCase.getBytes()(0)
   }
   
   object Method {
@@ -26,7 +30,9 @@ object Main extends App {
     val Post  = new Method("post")
   }
 
-  case class BasicHttpRequest(firstLine: Array[Byte], headers: Array[Array[Byte]], body: Array[Byte]) {
+  val SPACE = ' '.toByte
+
+  case class BasicHttpRequest(firstLine: Array[Byte], headers: LinkedList[Array[Byte]], body: Array[Byte]) {
     def urlEquals(url: Array[Byte]): Boolean = {
       val sp = {
         var i = 3
@@ -40,6 +46,18 @@ object Main extends App {
         m == -1
       }
     }
+
+    def fastMethodUrl(method: Method, url: Array[Byte]): Boolean = {
+      if (firstLine(0) == method.lFirst || firstLine(0) == method.uFirst) {
+        val methodLength = method.bytes.length
+        val urlLength = url.length
+        val urlStart = methodLength + 1
+        //url.length <= firstLine.length - method.bytes.length &&
+        firstLine(urlStart + urlLength) == SPACE &&
+        Arrays.mismatch(firstLine, urlStart, urlLength + urlStart, url, 0, urlLength) == -1
+      } else false
+    }
+
 
     def methodEquals(method: Method): Boolean = ParsingUtils.caseInsensitiveSubstringMatch(firstLine, method.bytes)
   }
@@ -65,34 +83,24 @@ object Main extends App {
     }
   }
 
-  class BasicHttpCodec(onDecode: BasicHttpRequest => Unit) extends Codec[BasicHttpRequest, BasicHttpResponse](onDecode) {
+  class BasicHttpCodec(onDecode: BasicHttpRequest => Unit) extends Codec[BasicHttpRequest, BasicHttpResponse](onDecode) with FastArrayBuilding {
 
-    val zeroFirstLine = new Array[Byte](0)
+    final val zeroFirstLine = new Array[Byte](0)
 
     var buildFirstLine = new Array[Byte](0)
-    var buildHeaders = new java.util.LinkedList[Array[Byte]]
+    var buildHeaders = new LinkedList[Array[Byte]]
     var buildContentLength = 0
 
-    def getHeaders: Array[Array[Byte]] = {
-      val arr = new Array[Array[Byte]](buildHeaders.size)
-      var i = 0
-      while (buildHeaders.size > 0) {
-        arr(i) = buildHeaders.remove
-        i+=1
-      }
-      arr
-    }
+    final val contentLengthKey = "content-length".getBytes
 
-    val contentLengthKey = "content-length".getBytes
-
-    def body(buf: ReadBuffer): Unit = {
-      onDecode(BasicHttpRequest(buildFirstLine,  getHeaders, buf.takeAll))
-      buildHeaders.clear
+    final def body(buf: ReadBuffer): Unit = {
+      onDecode(BasicHttpRequest(buildFirstLine,  buildHeaders, buf.takeAll))
+      buildHeaders = new LinkedList[Array[Byte]]
       buildFirstLine = zeroFirstLine
       buildContentLength = 0
     }
 
-    def line(buf: ReadBuffer): Int = {
+    final def line(buf: ReadBuffer): Int = {
       //println("line")
       if (buf.size == 0) { //0 size is the blank newline at the end of the head
         buildContentLength
@@ -108,7 +116,7 @@ object Main extends App {
       }
     }
 
-    protected def headerContentLength(header: Array[Byte]): Unit = {
+    final protected def headerContentLength(header: Array[Byte]): Unit = {
       if (buildContentLength == 0 && ParsingUtils.caseInsensitiveSubstringMatch(header, contentLengthKey)) {
         buildContentLength = trimStringToInt(header, contentLengthKey.length + 2)
         println(s"got content length $buildContentLength")
@@ -116,7 +124,7 @@ object Main extends App {
     }
 
 
-    private def trimStringToInt(line: Array[Byte], paddedStartIndex: Int): Int = {
+    final private def trimStringToInt(line: Array[Byte], paddedStartIndex: Int): Int = {
       var i = line.length - 1
       var build = 0
       var mult = 1
@@ -131,18 +139,41 @@ object Main extends App {
       build
     }
 
-
-    val parser = new HttpParser(line, body)
-
-    def decode(buf: ReadBuffer): Unit = {
-      parser.parse(buf)
-    }
-
     def encode(message: BasicHttpResponse, buffer: WriteBuffer) {
       message.encode(buffer)
     }
 
     def endOfStream() {}
+
+    //parsing stuff
+    private var parsingHead = true
+    private var bodySize = 0
+
+    final val headParser = new LineParser(line, false, 100)
+    final val zeroBody = ReadBuffer(ByteBuffer.wrap(new Array[Byte](0)))
+
+    def initSize = 1024
+    def shrinkOnComplete = true
+
+    final def decode(buffer: ReadBuffer): Unit = {
+      while (parsingHead && buffer.hasUnreadData) {
+        bodySize = headParser.parse(buffer)
+        if (bodySize == 0) {
+          body(zeroBody)        
+        } else if (bodySize > 0) {
+          parsingHead = false        
+        }
+      } 
+      if (!parsingHead) {
+        val amountToTake = math.min(bodySize, buffer.remaining)
+        write(buffer, amountToTake)
+        bodySize -= amountToTake
+        if (bodySize == 0) {
+          complete[Unit](body)
+          parsingHead = true
+        }
+      }
+    }
 
   }
 
@@ -165,8 +196,10 @@ object Main extends App {
   val body = "Hello, World!".getBytes
   val plaintextUrl = "/plaintext".getBytes
 
+  val firstLineMatch = s"${Method.Get.name.toUpperCase} /plaintext HTTP/1.1".getBytes
+
   def handler = new RequestHandler[BasicHttpRequest, BasicHttpResponse] {
-    def handleRequest(input: BasicHttpRequest) = if (input.methodEquals(Method.Get) && input.urlEquals(plaintextUrl)) {
+    def handleRequest(input: BasicHttpRequest) = if (Arrays.equals(input.firstLine, firstLineMatch)){ //(input.fastMethodUrl(Method.Get, plaintextUrl)) {
       Async.successful(BasicHttpResponse(200, headers, body))
     } else {
       Async.successful(BasicHttpResponse(404, headers, s"Unknown path".getBytes))

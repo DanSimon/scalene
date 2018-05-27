@@ -41,12 +41,12 @@ trait ChannelHandle {
     _readsEnabled = false
     setKeyInterest()
   }
-  def enableWriteReady() {
+  def enableWriteReady(): Unit = if (! _writeReadyEnabled) {
     _writeReadyEnabled = true
     setKeyInterest()
   }
 
-  def disableWriteReady() {
+  def disableWriteReady(): Unit = if (_writeReadyEnabled) {
     _writeReadyEnabled = false
     setKeyInterest()
   }

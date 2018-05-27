@@ -10,7 +10,7 @@ extends ServerConnectionHandler {
 
   private val pendingRequests = new LinkedList[Async[O]]
 
-  def processRequest(request: I): Unit = {
+  final def processRequest(request: I): Unit = {
     val async = requestHandler.handleRequest(request)
 
     pendingRequests.add(async)
@@ -24,11 +24,11 @@ extends ServerConnectionHandler {
 
   var _handle: Option[ConnectionHandle] = None
 
-  def onReadData(buffer: ReadBuffer) {
+  final def onReadData(buffer: ReadBuffer) {
     codec.decode(buffer)
   }
 
-  def onWriteData(buffer: WriteBuffer) = {
+  final def onWriteData(buffer: WriteBuffer) = {
     while (!buffer.isOverflowed && pendingRequests.size > 0 && pendingRequests.peek.result.isDefined) {
       pendingRequests.remove.result.get match {
         case Success(response) => codec.encode(response, buffer)

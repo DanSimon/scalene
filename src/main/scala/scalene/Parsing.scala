@@ -27,7 +27,7 @@ trait FastArrayBuilding {
     writePos += 1
   }
 
-  def write(buffer: ReadBuffer, bytes: Int) {
+  final def write(buffer: ReadBuffer, bytes: Int) {
     while (writePos + bytes > build.length) {
       grow()
     }
@@ -35,7 +35,7 @@ trait FastArrayBuilding {
     writePos += bytes
   }
 
-  def write(bytes: Array[Byte]) {
+  final def write(bytes: Array[Byte]) {
     while (writePos + bytes.length > build.length) {
       grow()
     }
@@ -43,7 +43,7 @@ trait FastArrayBuilding {
     writePos += bytes.length
   }
 
-  def complete[T](f: ReadBuffer => T): T = {
+  final def complete[T](f: ReadBuffer => T): T = {
     val res = f(ReadBuffer(ByteBuffer.wrap(build, 0, writePos)))
     writePos = 0
     if (shrinkOnComplete && build.length > initSize) {
@@ -58,7 +58,7 @@ object BodyCode {
 }
 import BodyCode._
 
-class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean = false, internalBufferBaseSize: Int = 100)
+final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean = false, internalBufferBaseSize: Int = 100)
     extends FastArrayBuilding {
   private val CR = '\r'.toByte
   private val LF = '\n'.toByte
@@ -107,18 +107,18 @@ class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean = false
 
 }
 
-class HttpParser(headLineProcessor: ReadBuffer => Int, bodyProcessor: ReadBuffer => Unit) extends FastArrayBuilding {
+final class HttpParser(headLineProcessor: ReadBuffer => Int, bodyProcessor: ReadBuffer => Unit) extends FastArrayBuilding {
 
   var parsingHead = true
   var bodySize = 0
 
-  val headParser = new LineParser(headLineProcessor, false, 100)
-  val zeroBody = ReadBuffer(ByteBuffer.wrap(new Array[Byte](0)))
+  final val headParser = new LineParser(headLineProcessor, false, 100)
+  final val zeroBody = ReadBuffer(ByteBuffer.wrap(new Array[Byte](0)))
 
   def initSize = 1024
   def shrinkOnComplete = true
 
-  def parse(buffer: ReadBuffer): Unit = {
+  final def parse(buffer: ReadBuffer): Unit = {
     while (parsingHead && buffer.hasUnreadData) {
       bodySize = headParser.parse(buffer)
       if (bodySize == 0) {
