@@ -107,38 +107,6 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
 
 }
 
-final class HttpParser(headLineProcessor: ReadBuffer => Int, bodyProcessor: ReadBuffer => Unit) extends FastArrayBuilding {
-
-  var parsingHead = true
-  var bodySize = 0
-
-  final val headParser = new LineParser(headLineProcessor, false, 100)
-  final val zeroBody = ReadBuffer(ByteBuffer.wrap(new Array[Byte](0)))
-
-  def initSize = 1024
-  def shrinkOnComplete = true
-
-  final def parse(buffer: ReadBuffer): Unit = {
-    while (parsingHead && buffer.hasUnreadData) {
-      bodySize = headParser.parse(buffer)
-      if (bodySize == 0) {
-        bodyProcessor(zeroBody)        
-      } else if (bodySize > 0) {
-        parsingHead = false        
-      }
-    } 
-    if (!parsingHead) {
-      val amountToTake = math.min(bodySize, buffer.remaining)
-      write(buffer, amountToTake)
-      bodySize -= amountToTake
-      if (bodySize == 0) {
-        complete[Unit](bodyProcessor)
-        parsingHead = true
-      }
-    }
-  }
-}
-
 object ParsingUtils {
 
   def caseInsensitiveSubstringMatch(candidate: Array[Byte], substringLower: Array[Byte]): Boolean = {

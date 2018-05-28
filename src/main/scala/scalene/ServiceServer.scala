@@ -1,6 +1,7 @@
 package scalene
 
 import java.util.LinkedList
+import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
 class ServiceServer[I,O](codecFactory: Codec.Factory[I,O], requestHandler: RequestHandler[I,O]) 

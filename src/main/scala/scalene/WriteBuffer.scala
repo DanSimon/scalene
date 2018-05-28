@@ -11,27 +11,29 @@ trait WriteBuffer {
 
   protected def copyDestination(bytesNeeded: Long): ByteBuffer
 
-  def write(from: ReadBuffer) {
+  final def write(from: ReadBuffer) {
     copyDestination(from.remaining).put(from.data)
   }
 
-  def write(bytes: Array[Byte]) {
-    copyDestination(bytes.length).put(bytes)
+  final def write(bytes: Array[Byte]) {
+    if (bytes.length > 0) {
+      copyDestination(bytes.length).put(bytes)
+    }
   }
 
-  def write(bytes: Array[Byte], offset: Int, length: Int) {
+  final def write(bytes: Array[Byte], offset: Int, length: Int) {
     copyDestination(length).put(bytes, offset, length)
   }
 
-  def write(byte: Byte) {
+  final def write(byte: Byte) {
     copyDestination(1).put(byte)
   }
 
-  def write(char: Char) {
+  final def write(char: Char) {
     write(char.toByte)
   }
 
-  def write(number: Int) {
+  final def write(number: Int) {
     if (number == 0) {
       write('0'.toByte)
     } else {
@@ -74,13 +76,13 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
 
   private var dyn: Option[ByteBuffer] = if (allocateDirect) None else Some(base)
 
-  def size = if (dyn.isDefined) dyn.get.position() else base.position
+  final def size = if (dyn.isDefined) dyn.get.position() else base.position
 
-  def isOverflowed: Boolean = dyn.isDefined
+  final def isOverflowed: Boolean = dyn.isDefined
 
-  private def dynAvailable = dyn.map { _.remaining }.getOrElse(0)
+  final private def dynAvailable = dyn.map { _.remaining }.getOrElse(0)
 
-  private def growDyn() {
+  final private def growDyn() {
     dyn match {
       case Some(old) => {
         val nd = ByteBuffer.allocate(old.capacity * 2)
@@ -97,7 +99,7 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
     }
   }
 
-  protected def copyDestination(bytesNeeded: Long): ByteBuffer =
+  final protected def copyDestination(bytesNeeded: Long): ByteBuffer =
     if (base.remaining >= bytesNeeded) base
     else {
       while (dynAvailable < bytesNeeded) {
@@ -111,7 +113,7 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
     base.clear()
   }
 
-  def data = {
+  final def data = {
     val d = dyn.getOrElse(base)
     d.flip
     ReadBuffer(d)
