@@ -50,6 +50,7 @@ extends ServerConnectionHandler {
 
   def onConnected(handle: ConnectionHandle) {
     _handle = Some(handle)
+    requestHandler.onInitialize(RequestHandlerContext(handle.time))
 
   }
 

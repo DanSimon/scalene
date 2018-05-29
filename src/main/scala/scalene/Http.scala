@@ -37,19 +37,35 @@ object ResponseCode {
   val Error = ResponseCode(500, "ERROR")
 }
 
-class Header(val data: Array[Byte]) {
+trait Header {
+  def key: String
+  def value: String
+
+  def encodedLine: Array[Byte]
+}
+
+class StaticHeader(val encodedLine: Array[Byte]) extends Header {
 
   def this(key: String, value: String) = this(s"$key: $value\r\n".getBytes)
 
-  private lazy val valueStart = data.indexOf(':'.toByte) + 1
-  lazy val key                = new String(data, 0, valueStart - 1).toLowerCase
-  lazy val value              = new String(data, valueStart, data.length - valueStart).trim
+  private lazy val valueStart = encodedLine.indexOf(':'.toByte) + 1
+  lazy val key                = new String(encodedLine, 0, valueStart - 1).toLowerCase
+  lazy val value              = new String(encodedLine, valueStart, encodedLine.length - valueStart).trim
 
   override def equals(that: Any) = that match {
-    case e: Header => Arrays.equals(data, e.data)
+    case e: Header => Arrays.equals(encodedLine, e.encodedLine)
     case _ => false
   }
 
+}
+
+class DateHeader {
+
+
+}
+
+object Header {
+  def apply(key: String, value: String) : Header = new StaticHeader(key, value)
 }
 
 case class BasicHttpRequest(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
@@ -91,7 +107,7 @@ case class BasicHttpResponse(code: ResponseCode, headers: Array[Header], body: A
     buffer.write(Newline)
     var i = 0
     while (i < headers.length) {
-      buffer.write(headers(i).data)
+      buffer.write(headers(i).encodedLine)
       i += 1
     }
     buffer.write(Newline)
@@ -126,7 +142,7 @@ class BasicHttpCodec(onDecode: BasicHttpRequest => Unit) extends Codec[BasicHttp
       } else {          
         val header = buf.takeAll
         headerContentLength(header)
-        buildHeaders.add(new Header(header))
+        buildHeaders.add(new StaticHeader(header))
       }
       BodyCode.HEAD_CONTINUE
     }

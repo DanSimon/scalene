@@ -31,6 +31,8 @@ trait ConnectionInfo {
 
 trait ConnectionHandle extends ConnectionInfo {
 
+  def time: TimeKeeper
+
   def disconnect()
   def requestWrite()
   def disableReads()
@@ -42,8 +44,9 @@ class ConnectionManager(
   val id: Long,
   val handler: ConnectionHandler,
   val channel: ChannelHandle)
-  extends ConnectionHandle {
+extends ConnectionHandle {
 
+  val time = channel.time
   val startTime = channel.time()
   private var writeOverflowBuffer: Option[ReadBuffer] = None
 

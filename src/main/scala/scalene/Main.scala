@@ -29,9 +29,9 @@ object Main extends App {
     def endOfStream = None
   }
 
-  val dateHeader = new Header("Date", "Mon, 21 May 2018 05:21:58 GMT")
-  val serverHeader = new Header("Server", "benchmark")
-  val contenttypeHeader = new Header("Content-Type", "text/plain")
+  val dateHeader = Header("Date", "Mon, 21 May 2018 05:21:58 GMT")
+  val serverHeader = Header("Server", "benchmark")
+  val contenttypeHeader = Header("Content-Type", "text/plain")
   val headers = Array(dateHeader, serverHeader, contenttypeHeader)
   val body = "Hello, World!".getBytes
   val plaintextUrl = "/plaintext".getBytes
@@ -39,7 +39,10 @@ object Main extends App {
   val firstLineMatch = s"${Method.Get.name.toUpperCase} /plaintext HTTP/1.1".getBytes
 
   def handler = new RequestHandler[BasicHttpRequest, BasicHttpResponse] {
+    var _context: Option[RequestHandlerContext] = None
+
     def handleRequest(input: BasicHttpRequest) = if (Arrays.equals(input.firstLine, firstLineMatch)){ //(input.fastMethodUrl(Method.Get, plaintextUrl)) {
+      val t: Long = _context.get.time()
       Async.successful(BasicHttpResponse(ResponseCode.Ok, headers, body))
     } else {
       Async.successful(BasicHttpResponse(ResponseCode.NotFound, headers, s"Unknown path".getBytes))
@@ -51,6 +54,10 @@ object Main extends App {
       Nil.toArray,
       reason.getMessage.getBytes
     )
+
+    override def onInitialize(ctx: RequestHandlerContext): Unit = {
+      _context = Some(ctx)
+    }
 
   }
 

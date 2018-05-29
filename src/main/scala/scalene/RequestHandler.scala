@@ -1,6 +1,10 @@
 package scalene
 
+case class RequestHandlerContext(time: TimeKeeper)
+
 trait RequestHandler[I,O] {
+
+  def onInitialize(context: RequestHandlerContext)
 
   def handleRequest(request: I): Async[O]
 
