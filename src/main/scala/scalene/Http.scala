@@ -1,7 +1,8 @@
 package scalene
 
 import java.nio.ByteBuffer
-import java.util.{Arrays, LinkedList}
+import java.text.SimpleDateFormat
+import java.util.{Arrays, Date, LinkedList, Locale, TimeZone}
 
 object HttpParsing {
   val SPACE_BYTE = ' '.toByte
@@ -41,10 +42,17 @@ trait Header {
   def key: String
   def value: String
 
-  def encodedLine: Array[Byte]
+  def encodedLine(time: TimeKeeper): Array[Byte]
+
+  override def equals(that: Any) = that match {
+    case e: Header => key == e.key && value == e.value
+    case _ => false
+  }
 }
 
 class StaticHeader(val encodedLine: Array[Byte]) extends Header {
+
+  def encodedLine(time: TimeKeeper) : Array[Byte] = encodedLine
 
   def this(key: String, value: String) = this(s"$key: $value\r\n".getBytes)
 
@@ -52,14 +60,28 @@ class StaticHeader(val encodedLine: Array[Byte]) extends Header {
   lazy val key                = new String(encodedLine, 0, valueStart - 1).toLowerCase
   lazy val value              = new String(encodedLine, valueStart, encodedLine.length - valueStart).trim
 
-  override def equals(that: Any) = that match {
-    case e: Header => Arrays.equals(encodedLine, e.encodedLine)
-    case _ => false
-  }
-
 }
 
-class DateHeader {
+class DateHeader(initialTime: Long = System.currentTimeMillis) extends Header{
+
+  private val sdf = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH)
+  sdf.setTimeZone(TimeZone.getTimeZone("GMT"))
+
+  val key = "Date"
+  val value = sdf.format(new Date(lastUpdated))
+
+  private var lastUpdated = initialTime
+  private var lastDateString = createLine()
+
+  private def createLine() = s"Date: ${sdf.format(new Date(lastUpdated))}\r\n".getBytes
+
+  def encodedLine(time: TimeKeeper): Array[Byte] = {
+    if (time() - lastUpdated >= 1000) {
+      lastDateString = createLine
+      lastUpdated = time()
+    }
+    lastDateString
+  }
 
 
 }
@@ -100,14 +122,14 @@ case class BasicHttpRequest(firstLine: Array[Byte], headers: LinkedList[Header],
 
 
 case class BasicHttpResponse(code: ResponseCode, headers: Array[Header], body: Array[Byte]) {
-  def encode(buffer: WriteBuffer) {
+  def encode(buffer: WriteBuffer, tk: TimeKeeper) {
     buffer.write(code.v1FirstLine)
     buffer.write(ContentLengthPrefix)
     buffer.write(body.size)
     buffer.write(Newline)
     var i = 0
     while (i < headers.length) {
-      buffer.write(headers(i).encodedLine)
+      buffer.write(headers(i).encodedLine(tk))
       i += 1
     }
     buffer.write(Newline)
@@ -115,7 +137,7 @@ case class BasicHttpResponse(code: ResponseCode, headers: Array[Header], body: A
   }
 }
 
-class BasicHttpCodec(onDecode: BasicHttpRequest => Unit) extends Codec[BasicHttpRequest, BasicHttpResponse](onDecode) with FastArrayBuilding {
+class BasicHttpCodec(onDecode: BasicHttpRequest => Unit, timeKeeper: TimeKeeper) extends Codec[BasicHttpRequest, BasicHttpResponse](onDecode) with FastArrayBuilding {
 
   final val zeroFirstLine = new Array[Byte](0)
 
@@ -172,7 +194,7 @@ class BasicHttpCodec(onDecode: BasicHttpRequest => Unit) extends Codec[BasicHttp
   }
 
   def encode(message: BasicHttpResponse, buffer: WriteBuffer) {
-    message.encode(buffer)
+    message.encode(buffer, timeKeeper)
   }
 
   def endOfStream() {}

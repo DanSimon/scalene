@@ -12,7 +12,9 @@ import scala.util.control.NonFatal
 
 import microactor._
 
-class ConnectionContext
+trait ConnectionContext {
+  def time: TimeKeeper
+}
 
 sealed trait WorkerMessage
 
@@ -63,7 +65,10 @@ class ServerWorker(
     case ServerToWorkerMessage.NewConnection(channel) => {
       val key = channel.register(selector, SelectionKey.OP_READ)
       val handle = new LiveChannelHandle(channel, key, timeKeeper)
-      val manager = new ConnectionManager(nextId(), handlerFactory(new ConnectionContext), handle)
+      val context = new ConnectionContext {
+        def time = timeKeeper
+      }
+      val manager = new ConnectionManager(nextId(), handlerFactory(context), handle)
       key.attach(manager)
       activeConnections(manager.id) = manager
       manager.onInitialize()

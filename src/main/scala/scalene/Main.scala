@@ -29,7 +29,7 @@ object Main extends App {
     def endOfStream = None
   }
 
-  val dateHeader = Header("Date", "Mon, 21 May 2018 05:21:58 GMT")
+  val dateHeader = new DateHeader//("Date", "Mon, 21 May 2018 05:21:58 GMT")
   val serverHeader = Header("Server", "benchmark")
   val contenttypeHeader = Header("Content-Type", "text/plain")
   val headers = Array(dateHeader, serverHeader, contenttypeHeader)
@@ -38,11 +38,19 @@ object Main extends App {
 
   val firstLineMatch = s"${Method.Get.name.toUpperCase} /plaintext HTTP/1.1".getBytes
 
+  val g = new ThreadLocal[String] {
+    override def initialValue() = "wat"
+  }
+
+  val ref = new java.util.concurrent.atomic.AtomicReference[String]("hello")
+
   def handler = new RequestHandler[BasicHttpRequest, BasicHttpResponse] {
     var _context: Option[RequestHandlerContext] = None
 
     def handleRequest(input: BasicHttpRequest) = if (Arrays.equals(input.firstLine, firstLineMatch)){ //(input.fastMethodUrl(Method.Get, plaintextUrl)) {
       val t: Long = _context.get.time()
+      //val y: String = g.get
+      val y = ref.get()
       Async.successful(BasicHttpResponse(ResponseCode.Ok, headers, body))
     } else {
       Async.successful(BasicHttpResponse(ResponseCode.NotFound, headers, s"Unknown path".getBytes))
@@ -61,7 +69,7 @@ object Main extends App {
 
   }
 
-  val factory: ConnectionContext => ServerConnectionHandler = ctx => new ServiceServer(new BasicHttpCodec(_), handler)
+    val factory: ConnectionContext => ServerConnectionHandler = ctx => new ServiceServer((x: BasicHttpRequest => Unit) => new BasicHttpCodec(x, ctx.time), handler)
 
   Server.start(settings, factory, new RefreshOnDemandTimeKeeper(new RealTimeKeeper))
 
