@@ -101,6 +101,7 @@ class ServerWorker(
           }
         }
       } else {
+        writeBuffer.reset()
         if (key.isReadable) {
           readBuffer.clear
           val sc: SocketChannel = key.channel().asInstanceOf[SocketChannel]
@@ -138,7 +139,6 @@ class ServerWorker(
               removeConnection(manager, DisconnectReason.Error(e))
             }
           }
-          writeBuffer.reset()
         }
       }
       selectedKeys.remove()

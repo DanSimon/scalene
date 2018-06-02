@@ -90,7 +90,9 @@ extends ConnectionHandle {
     _lastReadTime = channel.time()
     _bytesRead = buffer.size
     handler.onReadData(buffer)
-    //onWrite(wrt)
+    if (channel.writeReadyEnabled) {
+      onWrite(wrt)
+    }
   }
 
   def onWrite(buffer: ReadWriteBuffer): Unit = {
@@ -100,7 +102,9 @@ extends ConnectionHandle {
         _bytesWritten += channel.write(overflow)
         if (overflow.isEmpty) {
           writeOverflowBuffer = None
-          //do not disable writeReady here, give the handler a chance to write
+          //now that the overflow buffer is empty, give the handler a chance to
+          //write something
+          onWrite(buffer)
         }
       }
       case None => {
