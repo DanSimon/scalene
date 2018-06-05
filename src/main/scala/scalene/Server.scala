@@ -26,7 +26,7 @@ object WorkerToServerMessage {
 
 private[this] case object SelectNow extends ServerMessage
 
-class Server(
+class ServerActor(
   settings: ServerSettings,
   handlerFactory: ConnectionContext => ServerConnectionHandler,
   timeKeeper: TimeKeeper
@@ -80,6 +80,11 @@ class Server(
 
     }
     startServer()
+    context.dispatcher.addWakeLock(new WakeLock {
+      def wake(): Unit = {
+        selector.wakeup()
+      }
+    })
     context.self.send(SelectNow)
   }
 
@@ -108,7 +113,7 @@ class Server(
   }
 
   private def select(): Unit = {
-    selector.select(5)
+    selector.select()
     val selectedKeys = selector.selectedKeys()
     val it           = selectedKeys.iterator()
 
@@ -122,12 +127,12 @@ class Server(
           val serverSocketChannel: ServerSocketChannel = key.channel.asInstanceOf[ServerSocketChannel]
           val sc: SocketChannel        = serverSocketChannel.accept()
           if (openConnections < settings.maxConnections) {
-            //println("NEW CONNECTION")
             openConnections += 1
             sc.configureBlocking(false)
             sc.socket.setTcpNoDelay(true)
-            //router ! Worker.NewConnection(sc)
-            workerIterator.next.send(ServerToWorkerMessage.NewConnection(sc))            
+            val w = workerIterator.next
+            w.send(ServerToWorkerMessage.NewConnection(sc))
+            w.dispatcher.wake()
           } else {
             sc.close()
           }
@@ -146,9 +151,11 @@ class Server(
 
 object Server {
 
+  type Server = Actor[ExternalServerMessage]
+
   def start(settings: ServerSettings, factory: ConnectionContext => ServerConnectionHandler, timeKeeper: TimeKeeper)(implicit pool: Pool): Actor[ExternalServerMessage] = {
     val dispatcher = pool.createDispatcher
-    dispatcher.attach(new Server(settings, factory, timeKeeper)).specialize[ExternalServerMessage]
+    dispatcher.attach(new ServerActor(settings, factory, timeKeeper)).specialize[ExternalServerMessage]
   }
 
 }

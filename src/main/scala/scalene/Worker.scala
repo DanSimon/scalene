@@ -54,6 +54,11 @@ class ServerWorker(
 
   override def onStart(context: Context[WorkerMessage]) {
     super.onStart(context)
+    context.dispatcher.addWakeLock(new WakeLock {
+      def wake(): Unit = {
+        selector.wakeup()
+      }
+    })
     context.self.send(Select)
   }
 
@@ -80,10 +85,11 @@ class ServerWorker(
     activeConnections.remove(manager.id)
     manager.onDisconnected(reason)
     server.send(WorkerToServerMessage.ConnectionClosed)
+    server.dispatcher.wake()
   }
 
   private def select() {
-    selector.select(1) //need short wait times to register new connections
+    selector.select() //need short wait times to register new connections
     timeKeeper.refresh()
     val selectedKeys  = selector.selectedKeys.iterator
     while (selectedKeys.hasNext) {

@@ -4,6 +4,8 @@ import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.{Arrays, Date, LinkedList, Locale, TimeZone}
 
+import microactor.Pool
+
 object HttpParsing {
   val SPACE_BYTE = ' '.toByte
 
@@ -229,4 +231,52 @@ class BasicHttpCodec(onDecode: BasicHttpRequest => Unit, timeKeeper: TimeKeeper)
     }
   }
 
+}
+
+
+class BasicRoute(val method: Method, val fullUrl: String, val handler: BasicHttpRequest => Async[BasicHttpResponse]) {
+  private val flMatch = s"${method.name.toUpperCase} $fullUrl HTTP/1.1".getBytes
+
+  def isMatch(req: BasicHttpRequest) = Arrays.equals(req.firstLine, flMatch)
+
+}
+
+class BasicRouter(routeSeq: Seq[BasicRoute]) extends RequestHandler[BasicHttpRequest, BasicHttpResponse] {
+  var _context: Option[RequestHandlerContext] = None
+
+  private val routes = routeSeq.toArray
+  private val NoRouteResponse = Async.successful(BasicHttpResponse(ResponseCode.NotFound, Nil.toArray, s"Unknown path".getBytes))
+
+  def handleRequest(input: BasicHttpRequest) = {
+    var i = 0
+    while (i < routes.length && !routes(i).isMatch(input)) { i += 1 }
+    if (i < routes.length) {
+      routes(i).handler(input)
+    } else {
+      NoRouteResponse
+    }
+  }
+
+  def handleError(req: Option[BasicHttpRequest], reason: Throwable) = BasicHttpResponse(
+    ResponseCode.Error,
+    Nil.toArray,
+    reason.getMessage.getBytes
+  )
+
+  override def onInitialize(ctx: RequestHandlerContext): Unit = {
+    _context = Some(ctx)
+  }
+
+}
+
+//case class HttpServerSettings(
+
+object HttpServer {
+  def start(settings: ServerSettings, routes: Seq[BasicRoute]): Server.Server = {
+    implicit val pool = new Pool
+    val factory: ConnectionContext => ServerConnectionHandler = ctx => {
+      new ServiceServer((x: BasicHttpRequest => Unit) => new BasicHttpCodec(x, ctx.time), new BasicRouter(routes))
+    }
+    Server.start(settings, factory, new RefreshOnDemandTimeKeeper(new RealTimeKeeper))
+  }
 }
