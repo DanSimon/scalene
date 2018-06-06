@@ -22,6 +22,8 @@ class Method(val name: String) {
 
   val lFirst = bytes(0)
   val uFirst = name.toUpperCase.getBytes()(0)
+
+  def url(url: String): RouteBuilding2 = RouteBuilding2(this, url)
 }
 
 object Method {
@@ -123,23 +125,18 @@ case class BasicHttpRequest(firstLine: Array[Byte], headers: LinkedList[Header],
 }
 
 
-case class BasicHttpResponse(code: ResponseCode, headers: Array[Header], body: Array[Byte]) {
-  def encode(buffer: WriteBuffer, tk: TimeKeeper) {
-    buffer.write(code.v1FirstLine)
-    buffer.write(ContentLengthPrefix)
-    buffer.write(body.size)
-    buffer.write(Newline)
-    var i = 0
-    while (i < headers.length) {
-      buffer.write(headers(i).encodedLine(tk))
-      i += 1
-    }
-    buffer.write(Newline)
-    buffer.write(body)
-  }
+case class BasicHttpResponse(code: ResponseCode, headers: Array[Header], body: Body)
+object BasicHttpResponse {
+  private val emptyHeaders = new Array[Header](0)
+  def apply(code: ResponseCode, body:Body): BasicHttpResponse = BasicHttpResponse(code, emptyHeaders, body)
 }
 
-class BasicHttpCodec(onDecode: BasicHttpRequest => Unit, timeKeeper: TimeKeeper) extends Codec[BasicHttpRequest, BasicHttpResponse](onDecode) with FastArrayBuilding {
+class BasicHttpCodec(
+  onDecode: BasicHttpRequest => Unit,
+  timeKeeper: TimeKeeper,
+  commonHeaders: Array[Header]
+) 
+extends Codec[BasicHttpRequest, BasicHttpResponse](onDecode) with FastArrayBuilding {
 
   final val zeroFirstLine = new Array[Byte](0)
 
@@ -196,7 +193,25 @@ class BasicHttpCodec(onDecode: BasicHttpRequest => Unit, timeKeeper: TimeKeeper)
   }
 
   def encode(message: BasicHttpResponse, buffer: WriteBuffer) {
-    message.encode(buffer, timeKeeper)
+    buffer.write(message.code.v1FirstLine)
+    buffer.write(ContentLengthPrefix)
+    buffer.write(message.body.data.length)
+    buffer.write(Newline)
+    if (message.body.contentType.isDefined) {
+      buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
+    }
+    var i = 0
+    while (i < message.headers.length) {
+      buffer.write(message.headers(i).encodedLine(timeKeeper))
+      i += 1
+    }
+    i = 0
+    while (i < commonHeaders.length) {
+      buffer.write(commonHeaders(i).encodedLine(timeKeeper))
+      i += 1
+    }
+    buffer.write(Newline)
+    buffer.write(message.body.data)
   }
 
   def endOfStream() {}
@@ -245,7 +260,7 @@ class BasicRouter(routeSeq: Seq[BasicRoute]) extends RequestHandler[BasicHttpReq
   var _context: Option[RequestHandlerContext] = None
 
   private val routes = routeSeq.toArray
-  private val NoRouteResponse = Async.successful(BasicHttpResponse(ResponseCode.NotFound, Nil.toArray, s"Unknown path".getBytes))
+  private val NoRouteResponse = Async.successful(BasicHttpResponse(ResponseCode.NotFound, Body.plain("unknown path")))
 
   def handleRequest(input: BasicHttpRequest) = {
     var i = 0
@@ -259,8 +274,7 @@ class BasicRouter(routeSeq: Seq[BasicRoute]) extends RequestHandler[BasicHttpReq
 
   def handleError(req: Option[BasicHttpRequest], reason: Throwable) = BasicHttpResponse(
     ResponseCode.Error,
-    Nil.toArray,
-    reason.getMessage.getBytes
+    Body.plain(reason.getMessage)
   )
 
   override def onInitialize(ctx: RequestHandlerContext): Unit = {
@@ -269,14 +283,51 @@ class BasicRouter(routeSeq: Seq[BasicRoute]) extends RequestHandler[BasicHttpReq
 
 }
 
-//case class HttpServerSettings(
+case class ContentType(value: String) {
+  val header = Header("Content-Type", value)
+}
+
+object ContentType {
+  val `text/plain` = ContentType("text/plain")
+  val `application/json` = ContentType("application/json")
+}
+
+case class Body(data: Array[Byte], contentType: Option[ContentType]) {
+
+  def ok        = BasicHttpResponse(ResponseCode.Ok, this)
+  def error     = BasicHttpResponse(ResponseCode.Error, this)
+  def notFound  = BasicHttpResponse(ResponseCode.NotFound, this)
+
+}
+
+object Body {
+  val Empty = Body(Nil.toArray, None)
+
+  def plain(str: String) = Body(str.getBytes, Some(ContentType.`text/plain`))
+}
+
+case class HttpServerSettings(
+  serverName: String,
+  server: ServerSettings,
+  commonHeaders: Seq[Header] = List(new DateHeader)
+)
 
 object HttpServer {
-  def start(settings: ServerSettings, routes: Seq[BasicRoute]): Server.Server = {
+  def start(settings: HttpServerSettings, routes: Seq[BasicRoute]): Server.Server = {
     implicit val pool = new Pool
+    val commonHeaders = (settings.commonHeaders :+ Header("Server", settings.serverName)).toArray
     val factory: ConnectionContext => ServerConnectionHandler = ctx => {
-      new ServiceServer((x: BasicHttpRequest => Unit) => new BasicHttpCodec(x, ctx.time), new BasicRouter(routes))
+      new ServiceServer((x: BasicHttpRequest => Unit) => new BasicHttpCodec(x, ctx.time, commonHeaders), new BasicRouter(routes))
     }
-    Server.start(settings, factory, new RefreshOnDemandTimeKeeper(new RealTimeKeeper))
+    Server.start(settings.server, factory, new RefreshOnDemandTimeKeeper(new RealTimeKeeper))
   }
 }
+
+case class RouteBuilding2(method: Method, url: String) {
+  def to(handler: BasicHttpRequest => Async[BasicHttpResponse]) : BasicRoute = {
+    new BasicRoute(method, url, handler)
+  }
+
+  def to(syncResponse: => BasicHttpResponse): BasicRoute = to(_ => Async.successful(syncResponse))
+}
+

@@ -6,23 +6,21 @@ import microactor.Pool
 
 object Main extends App {
 
-  val settings = ServerSettings(
-    port = 9876,
-    addresses = Nil,
-    maxConnections = 500,
-    tcpBacklogSize = None,
-    numWorkers = Some(1)
+  val settings = HttpServerSettings(
+    serverName = "scalene",
+    server = ServerSettings(
+      port = 9876,
+      addresses = Nil,
+      maxConnections = 4096,
+      tcpBacklogSize = None,
+      numWorkers = Some(1)
+    )
   )
 
-  val headers = Array(
-    new DateHeader,
-    Header("Server", "benchmark"), 
-    Header("Content-Type", "text/plain")
-  )
-  val body = "Hello, World!".getBytes
+  val body = Body.plain("Hello, World!")
 
   HttpServer.start(settings, List(
-    new BasicRoute(Method.Get, "/plaintext", _ => Async.successful(BasicHttpResponse(ResponseCode.Ok, headers, body)))
+    Method.Get.url("/plaintext").to(body.ok)
   ))
 
 
