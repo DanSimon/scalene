@@ -99,7 +99,7 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
     }
   }
 
-  final protected def copyDestination(bytesNeeded: Long): ByteBuffer =
+  final protected def copyDestination(bytesNeeded: Long): ByteBuffer = {
     if (base.remaining >= bytesNeeded) base
     else {
       while (dynAvailable < bytesNeeded) {
@@ -107,6 +107,7 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
       }
       dyn.get
     }
+  }
 
   def reset() {
     dyn = None
