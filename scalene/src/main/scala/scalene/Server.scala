@@ -133,7 +133,6 @@ class ServerActor(
             sc.socket.setTcpNoDelay(true)
             val w = workerIterator.next
             w.send(ServerToWorkerMessage.NewConnection(sc))
-            w.dispatcher.wake()
           } else {
             sc.close()
           }
