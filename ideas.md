@@ -32,6 +32,18 @@ assumed the context is a per-connection context.  Otherwise we'd have to create
 a per-request context or at the very least include a context along with the
 request.
 
+### Making it work
+
+In order to make the above work, we need to create a worker-local object
+registry.  Basically the `Memcached()` function would require an implicit
+handle to the registry, and use it to get/create the actual connection.
+
+The registry itself would be untyped, and access would require typing guards as
+well as lifecycle management, so we don't accidently leave things in the
+registry.
+
+We could also allow the user to determine how they want the connection pooled.  They could do one-per-request, one-per-wonnection, one-per-worker.
+
 ## Going through Worker
 
 Let's figure out what we need and what we don't.
@@ -46,3 +58,10 @@ they could probably create an internal actor.  We can't make the handler itself
 an actor because right now an error causes it to get recreated
 
 Instead, basically all 
+
+Things we need to implement
+
+- http parsing safety checks: size, slow loris
+- timeouts
+
+

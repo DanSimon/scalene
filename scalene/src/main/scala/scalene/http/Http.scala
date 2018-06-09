@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util.{Arrays, Date, LinkedList, Locale, TimeZone}
 
 import microactor.Pool
+import util._
 
 object HttpParsing {
   val SPACE_BYTE = ' '.toByte

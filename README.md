@@ -1,7 +1,7 @@
 # Scalene - Fast and Lightweight Scala I/O Framework
 
 Scalene is a multi-threaded, asynchronous, event-based TCP I/O framework
-primarily focused on building HTTP servers and microservices.
+primarily focused on building HTTP servers.
 
 Scalene aims to be the fastest HTTP framework on the JVM while also having a
 simple and efficient API.
@@ -21,14 +21,13 @@ I welcome any
 ## Origins
 
 Scalene is heavily influenced by Tumblr's Colossus framework, of which I was
-also the lead developer. Scalene though is
-not a fork Colossus, but instead more like a reimagining with some fairly
-fundamental design changes.  At least as of now, no code from Colossus is being
-directly used in Scalene, though much of the core design is similar.  If at any
-point I do include original or modified code from Colossus I'll make it clear
-which files/classes they are and include the licensing information in the
-NOTICES file.  This will be more likely when I implement more of the Http,
-redis, and memcached protocols.
+also the lead developer. Scalene though is not a fork Colossus, but instead
+more like a reimagining with some fairly fundamental design changes.  At least
+as of now, no code from Colossus is being directly used in Scalene, though much
+of the core design is similar.  If at any point I do include original or
+modified code from Colossus I'll make it clear which files/classes they are and
+include the licensing information in the NOTICES file.  This will be more
+likely when I implement more of the Http, redis, and memcached protocols.
 
 A few ways in which Scalene differs from Colossus:
 
@@ -46,21 +45,22 @@ A few ways in which Scalene differs from Colossus:
 
 ## Benchmarks
 
-Scalene is really fast, possibly the fastest HTTP framework ever built.
-Colossus already is one of the fastest frameworks on the JVM and right now
-scalene is almost 3x faster.
+Scalene is already really fast.  
 
 Once it's in a more complete state and I start publishing artifacts Scalene
 will be entered into the techempower benchmarks.  For now, here's the results
 of some benchmarks I've run myself:
 
-This benchmark hits the `/plaintext` route.  I used whatever was in master at
-the time with no modifications except frameworks were limited to 1 I/O thread.
-I used wrk with 75 connections, 2 threads, pipeline depth of 16.  Benchmarks
-were run on my 4-core Intel 6700K 4.0Ghz desktop running Windows 10 with WSL
+This benchmark hits the `/plaintext` route.  I used whatever was in master in
+the Techempower repo at the time with no modifications except frameworks were
+limited to 1 I/O thread.  I used wrk with 75 connections, 2 threads, pipeline
+depth of 16.  Benchmarks were run on my 4-core Intel 6700K 4.0Ghz desktop
+running Windows 10 with WSL.
 
 Scalene 1,041,538
 Rapidoid  595,252
 Colossus  357,922
 Finagle 191,574
 http4s
+
+In another benchmark I ran all the frameworks in a Ubuntu VM

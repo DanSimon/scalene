@@ -3,6 +3,7 @@ package scalene
 import java.net.{InetSocketAddress, ServerSocket, StandardSocketOptions}
 import java.nio.channels.{SelectionKey, Selector, ServerSocketChannel, SocketChannel}
 import microactor._
+import util._
 
 case class ServerSettings(
   port: Int,

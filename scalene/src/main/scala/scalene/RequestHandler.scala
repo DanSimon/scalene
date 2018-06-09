@@ -1,5 +1,7 @@
 package scalene
 
+import util._
+
 case class RequestHandlerContext(time: TimeKeeper)
 
 trait RequestHandler[I,O] {

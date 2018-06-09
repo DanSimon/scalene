@@ -1,4 +1,4 @@
-package scalene
+package scalene.util
 
 trait TimeKeeper {
   def nowMillis : Long

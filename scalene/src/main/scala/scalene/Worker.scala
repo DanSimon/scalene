@@ -11,6 +11,7 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 import microactor._
+import util._
 
 trait ConnectionContext {
   def time: TimeKeeper

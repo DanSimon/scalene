@@ -1,5 +1,9 @@
 scalaVersion := "2.12.4"
 
+lazy val scalene = project
+
+lazy val benchmark = project
+
 libraryDependencies ++= Seq(
   "io.dsimon" %% "microactor" % "0.1.0-SNAPSHOT",
   "ch.qos.logback"               %  "logback-classic"      % "1.2.2",

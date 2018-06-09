@@ -49,12 +49,6 @@ trait WriteBuffer {
     }
   }
 
-  /*
-  def write(block: DataBlock) {
-    write(block.data)
-  }
-  */
-
 }
 
 trait ReadWriteBuffer extends WriteBuffer {

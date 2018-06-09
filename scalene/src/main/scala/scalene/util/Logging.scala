@@ -1,4 +1,4 @@
-package scalene
+package scalene.util
 
 import org.slf4j.{Logger, LoggerFactory}
 

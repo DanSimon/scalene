@@ -3,6 +3,8 @@ package scalene
 import java.nio.channels.{SelectionKey, SocketChannel}
 import java.net.InetSocketAddress
 
+import util._
+
 trait ChannelHandle {
   def close() 
   def finishConnect() 
