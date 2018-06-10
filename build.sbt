@@ -8,6 +8,13 @@ lazy val scalene = project
 
 lazy val benchmark = project
   .dependsOn(scalene)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.json4s"                   %% "json4s-jackson"       % "3.5.3",
+      "ch.qos.logback"               %  "logback-classic"      % "1.2.2",
+      "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.9.2"
+    )
+  )
 
 val scaleneSettings = Seq (
   libraryDependencies ++= Seq(

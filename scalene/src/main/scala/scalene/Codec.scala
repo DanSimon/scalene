@@ -1,7 +1,7 @@
 package scalene
 
 
-abstract class Codec[I,O](val onDecode: I => Unit) {
+trait Codec[I,O] {
   def decode(data: ReadBuffer)
   def encode(message: O, buffer: WriteBuffer)
 
