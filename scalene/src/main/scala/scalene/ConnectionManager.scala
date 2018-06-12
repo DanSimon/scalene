@@ -29,6 +29,8 @@ trait ConnectionInfo {
   def timeIdle: Long
   def remoteAddress: Option[InetSocketAddress]
 
+  def lastActivity = math.max(lastWriteTime, lastReadTime)
+
 }
 
 trait ConnectionHandle extends ConnectionInfo {

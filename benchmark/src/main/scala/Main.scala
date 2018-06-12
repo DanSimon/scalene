@@ -7,6 +7,7 @@ import java.util.{Arrays, LinkedList}
 import microactor.Pool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import scala.concurrent.duration._
 import scalene._
 import scalene.http._
 import Body.BodyLifting
@@ -29,7 +30,8 @@ object Main extends App {
       addresses = Nil,
       maxConnections = 4096,
       tcpBacklogSize = None,
-      numWorkers = Some(1)
+      numWorkers = Some(1),
+      maxIdleTime = 10.seconds
     )
   )
 

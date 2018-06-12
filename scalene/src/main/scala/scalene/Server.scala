@@ -2,6 +2,7 @@ package scalene
 
 import java.net.{InetSocketAddress, ServerSocket, StandardSocketOptions}
 import java.nio.channels.{SelectionKey, Selector, ServerSocketChannel, SocketChannel}
+import scala.concurrent.duration.Duration
 import microactor._
 import util._
 
@@ -10,7 +11,8 @@ case class ServerSettings(
   addresses: Seq[String],
   maxConnections: Int,
   tcpBacklogSize: Option[Int],
-  numWorkers: Option[Int]
+  numWorkers: Option[Int],
+  maxIdleTime: Duration
 )
 
 sealed trait ServerMessage
@@ -30,8 +32,9 @@ private[this] case object SelectNow extends ServerMessage
 class ServerActor(
   settings: ServerSettings,
   handlerFactory: ConnectionContext => ServerConnectionHandler,
-  timeKeeper: TimeKeeper
-) extends BasicReceiver[ServerMessage] with Logging {
+  timeKeeper: TimeKeeper,
+  context: Context
+) extends Receiver[ServerMessage](context) with Logging {
 
   private var openConnections = 0
 
@@ -67,15 +70,16 @@ class ServerActor(
 
   serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT)
 
-  override def onStart(context: Context[ServerMessage]) {
-    println("STARTING THE SERVER")
-    super.onStart(context)
+  override def onStart() {
+    super.onStart()
     (1 to settings.numWorkers.getOrElse(1)).foreach{i =>
       val dispatcher = context.dispatcher.pool.createDispatcher
-      val actor = dispatcher.attach(new ServerWorker(
-        context.self.specialize[WorkerToServerMessage],
+      val actor: Actor[ServerToWorkerMessage] = dispatcher.attach(ctx => new ServerWorker(
+        self.specialize[WorkerToServerMessage],
         handlerFactory,
-        timeKeeper
+        timeKeeper,
+        settings.maxIdleTime,
+        ctx
       )).specialize[ServerToWorkerMessage]
       workers.append(actor)
 
@@ -86,7 +90,7 @@ class ServerActor(
         selector.wakeup()
       }
     })
-    context.self.send(SelectNow)
+    self.send(SelectNow)
   }
 
   def startServer() = {
@@ -106,7 +110,7 @@ class ServerActor(
   def receive(s: ServerMessage) : Unit = s match {
     case SelectNow => {
       select()
-      context.self.send(SelectNow)
+      self.send(SelectNow)
     }
     case WorkerToServerMessage.ConnectionClosed => {
       openConnections -= 1
@@ -155,7 +159,7 @@ object Server {
 
   def start(settings: ServerSettings, factory: ConnectionContext => ServerConnectionHandler, timeKeeper: TimeKeeper)(implicit pool: Pool): Actor[ExternalServerMessage] = {
     val dispatcher = pool.createDispatcher
-    dispatcher.attach(new ServerActor(settings, factory, timeKeeper)).specialize[ExternalServerMessage]
+    dispatcher.attach(ctx => new ServerActor(settings, factory, timeKeeper, ctx)).specialize[ExternalServerMessage]
   }
 
 }

@@ -35,8 +35,10 @@ trait ServerConnectionHandler extends ConnectionHandler
 class ServerWorker(
   server: Actor[WorkerToServerMessage],
   handlerFactory: ConnectionContext => ServerConnectionHandler,
-  timeKeeper: TimeKeeper
-) extends BasicReceiver[WorkerMessage] with Logging {
+  timeKeeper: TimeKeeper,
+  idleTimeout: Duration,
+  context: Context
+) extends Receiver[WorkerMessage](context) with Logging {
 
 
   private val selector = Selector.open()
@@ -47,26 +49,37 @@ class ServerWorker(
 
   private val activeConnections = collection.mutable.Map[Long, ConnectionManager]()
 
+  implicit val mdispatcher:Dispatcher = context.dispatcher
+  private val timer = new Timer(50)
+
+
   private var _nextId = 0L
   private def nextId() = {
     _nextId += 1
     _nextId
   }
 
-  override def onStart(context: Context[WorkerMessage]) {
-    super.onStart(context)
-    context.dispatcher.addWakeLock(new WakeLock {
-      def wake(): Unit = {
-        selector.wakeup()
-      }
-    })
-    context.self.send(Select)
+  context.dispatcher.addWakeLock(new WakeLock {
+    def wake(): Unit = {
+      selector.wakeup()
+    }
+  })
+
+  override def onStart() {
+    super.onStart()
+    self.send(Select)
+    def scheduleIdleTimeout(): Unit = timer.schedule(1000){ 
+      println("checking")
+      closeIdleConnections() 
+      scheduleIdleTimeout()
+    }
+    scheduleIdleTimeout()
   }
 
   def receive(message: WorkerMessage) = message match {
     case Select => {
       select()
-      context.self.send(Select)
+      self.send(Select)
     }
     case ServerToWorkerMessage.NewConnection(channel) => {
       val key = channel.register(selector, SelectionKey.OP_READ)
@@ -86,7 +99,14 @@ class ServerWorker(
     activeConnections.remove(manager.id)
     manager.onDisconnected(reason)
     server.send(WorkerToServerMessage.ConnectionClosed)
-    server.dispatcher.wake()
+  }
+
+  private def closeIdleConnections(): Unit = {
+    val timeoutTime = timeKeeper() - idleTimeout.toMillis
+    val toClose = activeConnections.filter{case (_, c) => c.lastActivity < timeoutTime}
+    toClose.foreach{case (_, c) => 
+      removeConnection(c, DisconnectReason.TimedOut)
+    }    
   }
 
   private def select() {

@@ -30,10 +30,11 @@ class Timer(resolutionMillis: Int = 10)(implicit dispatcher: Dispatcher) {
   object TimerExecutorCommand {
     case class Execute(hash: Long) extends TimerExecutorCommand
   }
-  class TimerExecutor extends BasicReceiver[TimerExecutorCommand] {
+  class TimerExecutor(ctx: Context) extends Receiver[TimerExecutorCommand](ctx) {
 
     def receive(m: TimerExecutorCommand): Unit = m match {
       case TimerExecutorCommand.Execute(hash) => {
+        println("got the tick")
         if (executions.contains(hash)) {
           val events = executions(hash)
           executions.remove(hash)
@@ -50,7 +51,7 @@ class Timer(resolutionMillis: Int = 10)(implicit dispatcher: Dispatcher) {
     }
   }
 
-  private val executor = dispatcher.attach(new TimerExecutor)
+  private val executor = dispatcher.attach(new TimerExecutor(_))
 
   def schedule(inMillis: Long)(event: => Unit) = {
     val hash:Long = ((System.currentTimeMillis + inMillis).toDouble / resolutionMillis).toLong * resolutionMillis
@@ -58,7 +59,10 @@ class Timer(resolutionMillis: Int = 10)(implicit dispatcher: Dispatcher) {
     if (!executions.contains(hash)) {
       executions(hash) = new LinkedList[EventTrigger]
       val task = new java.util.TimerTask {
-        def run(): Unit = executor.send(TimerExecutorCommand.Execute(hash))
+        def run(): Unit = {
+          println("tick")
+          executor.send(TimerExecutorCommand.Execute(hash))
+        }
       }
       jtimer.schedule(task, inMillis)
     }
