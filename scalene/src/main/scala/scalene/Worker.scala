@@ -25,7 +25,7 @@ object ServerToWorkerMessage {
 }
 
 
-private[this] case object Select extends WorkerMessage
+private[this] case object Select extends WorkerMessage with NoWakeMessage
 
 
 
@@ -52,6 +52,19 @@ class ServerWorker(
   implicit val mdispatcher:Dispatcher = context.dispatcher
   private val timer = new Timer(50)
 
+  //this is needed because if the worker sends Select to itself it doesn't
+  //yield execution to other actors
+  private val coSelect = {
+    val workerSelf = self
+    context.dispatcher.attach(new Receiver[Select.type](_) {
+      def receive(m: Select.type) {
+        workerSelf.send(Select)
+      }
+    })
+  }
+
+
+
 
   private var _nextId = 0L
   private def nextId() = {
@@ -69,7 +82,6 @@ class ServerWorker(
     super.onStart()
     self.send(Select)
     def scheduleIdleTimeout(): Unit = timer.schedule(1000){ 
-      println("checking")
       closeIdleConnections() 
       scheduleIdleTimeout()
     }
@@ -79,7 +91,7 @@ class ServerWorker(
   def receive(message: WorkerMessage) = message match {
     case Select => {
       select()
-      self.send(Select)
+      coSelect.send(Select)
     }
     case ServerToWorkerMessage.NewConnection(channel) => {
       val key = channel.register(selector, SelectionKey.OP_READ)

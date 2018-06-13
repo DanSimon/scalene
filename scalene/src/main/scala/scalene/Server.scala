@@ -27,7 +27,7 @@ object WorkerToServerMessage {
   case object ConnectionClosed extends WorkerToServerMessage
 }
 
-private[this] case object SelectNow extends ServerMessage
+private[this] case object SelectNow extends ServerMessage with NoWakeMessage
 
 class ServerActor(
   settings: ServerSettings,
