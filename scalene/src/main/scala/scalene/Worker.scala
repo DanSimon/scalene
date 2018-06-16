@@ -108,6 +108,7 @@ class ServerWorker(
   }
 
   private def removeConnection(manager: ConnectionManager, reason: DisconnectReason): Unit = {
+    manager.disconnect()
     activeConnections.remove(manager.id)
     manager.onDisconnected(reason)
     server.send(WorkerToServerMessage.ConnectionClosed)
@@ -115,10 +116,15 @@ class ServerWorker(
 
   private def closeIdleConnections(): Unit = {
     val timeoutTime = timeKeeper() - idleTimeout.toMillis
-    val toClose = activeConnections.filter{case (_, c) => c.lastActivity < timeoutTime}
+    val toClose = activeConnections.filter{case (_, c) => 
+      c.lastActivity < timeoutTime
+    }
     toClose.foreach{case (_, c) => 
       removeConnection(c, DisconnectReason.TimedOut)
     }    
+    if (!toClose.isEmpty) {
+      info(s"""closed ${toClose.size} idle connection${if (toClose.size > 1) "s" else ""}""")
+    }
   }
 
   private def select() {

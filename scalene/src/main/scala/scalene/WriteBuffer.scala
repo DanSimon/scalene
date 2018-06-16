@@ -2,31 +2,28 @@ package scalene
 
 import java.nio.ByteBuffer
 
-/**
- * An elastic buffer with a fixed-sized primary buffer and a dynamic seconday buffer meant for overflow.
-  */
 trait WriteBuffer {
 
   def isOverflowed: Boolean
 
-  protected def copyDestination(bytesNeeded: Long): ByteBuffer
+  protected def into(bytesNeeded: Int): ByteBuffer
 
   final def write(from: ReadBuffer) {
-    copyDestination(from.remaining).put(from.data)
+    into(from.bytesRemaining).put(from.buffer)
   }
 
   final def write(bytes: Array[Byte]) {
     if (bytes.length > 0) {
-      copyDestination(bytes.length).put(bytes)
+      into(bytes.length).put(bytes)
     }
   }
 
   final def write(bytes: Array[Byte], offset: Int, length: Int) {
-    copyDestination(length).put(bytes, offset, length)
+    into(length).put(bytes, offset, length)
   }
 
   final def write(byte: Byte) {
-    copyDestination(1).put(byte)
+    into(1).put(byte)
   }
 
   final def write(char: Char) {
@@ -68,49 +65,29 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
     ByteBuffer.allocate(baseSize)
   }
 
-  private var dyn: Option[ByteBuffer] = if (allocateDirect) None else Some(base)
+  private var current: ByteBuffer = base
 
-  final def size = if (dyn.isDefined) dyn.get.position() else base.position
+  final def size = current.position
 
-  final def isOverflowed: Boolean = dyn.isDefined
+  final def isOverflowed: Boolean = current != base
 
-  final private def dynAvailable = dyn.map { _.remaining }.getOrElse(0)
-
-  final private def growDyn() {
-    dyn match {
-      case Some(old) => {
-        val nd = ByteBuffer.allocate(old.capacity * 2)
-        old.flip
-        nd.put(old)
-        dyn = Some(nd)
-      }
-      case None => {
-        val nd = ByteBuffer.allocate(baseSize * 2)
-        base.flip
-        nd.put(base)
-        dyn = Some(nd)
-      }
+  final protected def into(bytesNeeded: Int): ByteBuffer = {
+    if (bytesNeeded > current.remaining) {
+      val temp = current
+      current = ByteBuffer.allocate((current.position() + bytesNeeded).toInt * 2)
+      temp.flip
+      current.put(temp)
     }
-  }
-
-  final protected def copyDestination(bytesNeeded: Long): ByteBuffer = {
-    if (base.remaining >= bytesNeeded) base
-    else {
-      while (dynAvailable < bytesNeeded) {
-        growDyn()
-      }
-      dyn.get
-    }
+    current
   }
 
   def reset() {
-    dyn = None
+    current = base
     base.clear()
   }
 
   final def data = {
-    val d = dyn.getOrElse(base)
-    d.flip
-    ReadBuffer(d)
+    current.flip
+    ReadBuffer(current)
   }
 }

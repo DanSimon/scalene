@@ -29,7 +29,7 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
   private var buildContentLength = 0
 
   final def body(buf: ReadBuffer): Unit = {
-    finishDecode(buildFirstLine,  buildHeaders, buf.takeAll)
+    finishDecode(buildFirstLine,  buildHeaders, buf.readAll)
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = 0
@@ -41,9 +41,9 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
       buildContentLength
     } else {
       if (buildFirstLine.length == 0) {
-        buildFirstLine = buf.takeAll
+        buildFirstLine = buf.readAll
       } else {          
-        val header = buf.takeAll
+        val header = buf.readAll
         headerContentLength(header)
         buildHeaders.add(new StaticHeader(header))
       }
@@ -87,7 +87,7 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
   def shrinkOnComplete = true
 
   final def decode(buffer: ReadBuffer): Unit = {
-    while (parsingHead && buffer.hasUnreadData) {
+    while (parsingHead && buffer.hasNext) {
       bodySize = headParser.parse(buffer)
       if (bodySize == 0) {
         body(zeroBody)        
@@ -96,7 +96,7 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
       }
     } 
     if (!parsingHead) {
-      val amountToTake = math.min(bodySize, buffer.remaining)
+      val amountToTake = math.min(bodySize, buffer.bytesRemaining)
       write(buffer, amountToTake)
       bodySize -= amountToTake
       if (bodySize == 0) {

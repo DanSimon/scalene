@@ -31,7 +31,7 @@ trait FastArrayBuilding {
     while (writePos + bytes > build.length) {
       grow()
     }
-    buffer.takeInto(build, writePos, bytes)
+    buffer.readInto(build, writePos, bytes)
     writePos += bytes
   }
 
@@ -69,7 +69,7 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
   var scanByte = CR
 
   private final def checkLineFeed(buffer: ReadBuffer): Int = {
-    val b = buffer.data.get
+    val b = buffer.buffer.get
     if (b == LF) {
       if (includeNewline) {
         write(CR)
@@ -85,13 +85,13 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
   //TODO : should return something instead of Int to indicate chunked body or body until EOS
   final def parse(buffer: ReadBuffer): Int = {
     var bodySize = HEAD_CONTINUE
-    if (scanByte == LF && buffer.hasUnreadData) {
+    if (scanByte == LF && ! buffer.isEmpty) {
       bodySize = checkLineFeed(buffer)
     }
-    while (buffer.hasUnreadData && bodySize == BodyCode.HEAD_CONTINUE) {
-      val byte = buffer.data.get
+    while (!buffer.isEmpty && bodySize == BodyCode.HEAD_CONTINUE) {
+      val byte = buffer.next
       if (byte == CR) {
-        if (buffer.hasUnreadData) {
+        if (!buffer.isEmpty) {
           bodySize = checkLineFeed(buffer)
         } else {
           //this would only happen if the \n is in the next packet/buffer,

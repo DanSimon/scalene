@@ -56,8 +56,8 @@ extends ConnectionHandle {
 
   private var _bytesRead      = 0L
   private var _bytesWritten   = 0L
-  private var _lastReadTime   = 0L
-  private var _lastWriteTime  = 0L
+  private var _lastReadTime   = time()
+  private var _lastWriteTime  = time()
   def bytesRead      = _bytesRead
   def bytesWritten   = _bytesWritten
   def lastReadTime   = _lastReadTime
@@ -117,7 +117,7 @@ extends ConnectionHandle {
           val readBuffer = buffer.data
           _bytesWritten += channel.write(readBuffer)
           if (!readBuffer.isEmpty) {
-            writeOverflowBuffer = Some(readBuffer.takeCopy)
+            writeOverflowBuffer = Some(readBuffer.readCopy)
           }
         } else {
           channel.disableWriteReady()
