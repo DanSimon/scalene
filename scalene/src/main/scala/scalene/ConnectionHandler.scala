@@ -2,7 +2,7 @@ package scalene
 
 trait ConnectionHandler {
 
-  def onInitialize()
+  def onInitialize(env: WorkEnv)
 
   def onReadData(buffer: ReadBuffer)
 

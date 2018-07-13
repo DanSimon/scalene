@@ -36,6 +36,10 @@ class PromiseAsync[T] extends Async[T] {
     }
   }
 
+  def succeed(result: T): Unit = complete(Success(result))
+
+  def fail(error: Throwable): Unit = complete(Failure(error))
+
   private var value: Option[Try[T]] = None
 
   def result = value
@@ -75,6 +79,8 @@ class PromiseAsync[T] extends Async[T] {
 
 object Async {
 
-  def successful[T](value: T) = ConstantAsync(Success(value))
+  def successful[T](value: T): Async[T] = ConstantAsync(Success(value))
+
+  def failure[T](error: Throwable): Async[T] = ConstantAsync(Failure(error))
 
 }

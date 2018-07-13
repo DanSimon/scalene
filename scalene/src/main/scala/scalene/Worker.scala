@@ -28,6 +28,11 @@ object ServerToWorkerMessage {
 private[this] case object Select extends WorkerMessage with NoWakeMessage
 
 
+case class WorkEnv(
+  time: TimeKeeper,
+  timer: Timer,
+  dispatcher: Dispatcher
+)
 
 
 trait ServerConnectionHandler extends ConnectionHandler
@@ -51,6 +56,8 @@ class ServerWorker(
 
   implicit val mdispatcher:Dispatcher = context.dispatcher
   private val timer = new Timer(50)
+
+  val environment = WorkEnv(timeKeeper, timer, context.dispatcher)
 
   //this is needed because if the worker sends Select to itself it doesn't
   //yield execution to other actors
@@ -102,7 +109,7 @@ class ServerWorker(
       val manager = new ConnectionManager(nextId(), handlerFactory(context), handle)
       key.attach(manager)
       activeConnections(manager.id) = manager
-      manager.onInitialize()
+      manager.onInitialize(environment)
       manager.onConnected()
     }
   }

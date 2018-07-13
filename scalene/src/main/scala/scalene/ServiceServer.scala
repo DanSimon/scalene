@@ -20,7 +20,7 @@ extends ServerConnectionHandler {
     }
   }
 
-  def onInitialize() {
+  def onInitialize(env: WorkEnv) {
   }
 
   var _handle: Option[ConnectionHandle] = None
