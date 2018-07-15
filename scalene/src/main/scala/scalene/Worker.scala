@@ -135,7 +135,7 @@ class ServerWorker(
   }
 
   private def select() {
-    selector.select() //need short wait times to register new connections
+    selector.select()
     timeKeeper.refresh()
     val selectedKeys  = selector.selectedKeys.iterator
     while (selectedKeys.hasNext) {
