@@ -26,3 +26,5 @@ _site/
 
 secrets.tar
 .jvmopts
+
+ignored/

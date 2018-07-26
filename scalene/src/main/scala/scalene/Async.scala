@@ -83,4 +83,6 @@ object Async {
 
   def failure[T](error: Throwable): Async[T] = ConstantAsync(Failure(error))
 
+
+
 }

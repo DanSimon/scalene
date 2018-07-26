@@ -9,6 +9,7 @@ import scalene.util._
 
 object HttpParsing {
   val SPACE_BYTE = ' '.toByte
+  val CODE_START = HttpVersion.`1.1`.stringValue.length + 1
 
   
   val ContentLengthPrefix = "Content-Length: ".getBytes
@@ -36,7 +37,6 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
   }
 
   final def line(buf: ReadBuffer): Int = {
-    //println("line")
     if (buf.size == 0) { //0 size is the blank newline at the end of the head
       buildContentLength
     } else {
@@ -54,7 +54,6 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
   final protected def headerContentLength(header: Array[Byte]): Unit = {
     if (buildContentLength == 0 && ParsingUtils.caseInsensitiveSubstringMatch(header, contentLengthKey)) {
       buildContentLength = trimStringToInt(header, contentLengthKey.length + 2)
-      println(s"got content length $buildContentLength")
     }
   }
 
@@ -64,7 +63,6 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
     var build = 0
     var mult = 1
     while (i >= paddedStartIndex) {
-      println(line(i).toChar)
       if (line(i) != ' '.toByte) {
         build += (line(i) - 48) * mult
         mult *= 10
@@ -108,31 +106,25 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
 
 }
 
-class HttpServerCodec(
-  onDecode: BasicHttpRequest => Unit,
-  timeKeeper: TimeKeeper,
-  commonHeaders: Array[Header]
-) 
-extends Codec[BasicHttpRequest, BasicHttpResponse] with HttpMessageDecoder with FastArrayBuilding {
+trait HttpMessageEncoding[T <: HttpMessage] {
+  def commonHeaders: Array[Header]
+  def timeKeeper: TimeKeeper
 
-  def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
-    onDecode(BasicHttpRequest(firstLine, headers, body))
-  }
-
-  def encode(message: BasicHttpResponse, buffer: WriteBuffer) {
-    buffer.write(message.code.v1FirstLine)
+  final def encode(message: T, buffer: WriteBuffer) {
+    message.encodeFirstLine(buffer)
     buffer.write(ContentLengthPrefix)
     buffer.write(message.body.data.length)
     buffer.write(Newline)
     if (message.body.contentType.isDefined) {
       buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
     }
-    var i = 0
-    while (i < message.headers.length) {
-      buffer.write(message.headers(i).encodedLine(timeKeeper))
-      i += 1
+
+    val h = message.headers.listIterator(0)
+    while (h.hasNext) {
+      buffer.write(h.next.encodedLine(timeKeeper))
     }
-    i = 0
+
+    var i = 0
     while (i < commonHeaders.length) {
       buffer.write(commonHeaders(i).encodedLine(timeKeeper))
       i += 1
@@ -140,6 +132,43 @@ extends Codec[BasicHttpRequest, BasicHttpResponse] with HttpMessageDecoder with 
     buffer.write(Newline)
     buffer.write(message.body.data)
   }
+}
 
+class HttpMessageEncoder[T <: HttpMessage](
+  val commonHeaders: Array[Header] = new Array(0), 
+  val timeKeeper: TimeKeeper
+) extends HttpMessageEncoding[T] {
+
+  def encodeString(message: T): String = {
+    val buf = new WriteBufferImpl(100, false)
+    encode(message, buf)
+    buf.data.readString
+  }
+}
+
+
+class HttpServerCodec(
+  onDecode: HttpRequest => Unit,
+  val timeKeeper: TimeKeeper,
+  val commonHeaders: Array[Header]
+) 
+extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpResponse] {
+
+  def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
+    onDecode(new ParsedHttpRequest(firstLine, headers, Body(body, None)))
+  }
+
+}
+
+class HttpClientCodec(
+  onDecode: HttpResponse => Unit,
+  val timeKeeper: TimeKeeper,
+  val commonHeaders: Array[Header]
+) 
+extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpRequest] {
+
+  def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
+    onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
+  }
 
 }

@@ -10,6 +10,17 @@ import scalene.util._
 
 import HttpParsing._
 
+class HttpVersion(strValue: String) {
+
+  val stringValue = s"HTTP/${strValue}"
+  val bytes: Array[Byte] = stringValue.getBytes
+}
+object HttpVersion {
+  val `1.0` = new HttpVersion("1.0")
+  val `1.1` = new HttpVersion("1.1")
+  val `2.0` = new HttpVersion("2.0")
+}
+
 
 class Method(val name: String) {
   val bytes = name.getBytes   
@@ -21,8 +32,8 @@ class Method(val name: String) {
 }
 
 object Method {
-  val Get   = new Method("get")
-  val Post  = new Method("post")
+  val Get   = new Method("GET")
+  val Post  = new Method("POST")
 }
 
 case class ResponseCode(code: Int, codeMessage: String) {
@@ -34,6 +45,15 @@ object ResponseCode {
   val Ok = ResponseCode(200, "OK")
   val NotFound = ResponseCode(404, "NOT FOUND")
   val Error = ResponseCode(500, "ERROR")
+
+  val codes = Map[Int, ResponseCode](
+    200 -> Ok,
+    404 -> NotFound,
+    500 -> Error
+  )
+
+  def apply(intCode: Int): ResponseCode = codes(intCode)
+
 }
 
 trait Header {
@@ -88,78 +108,19 @@ object Header {
   def apply(key: String, value: String) : Header = new StaticHeader(key, value)
 }
 
-case class BasicHttpRequest(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
-  def urlEquals(url: Array[Byte]): Boolean = {
-    val sp = {
-      var i = 3
-      while (firstLine(i) != SPACE_BYTE) { i += 1 }
-      i + 1
-    }
-    if (firstLine.length - sp < url.length || firstLine(sp + url.length) != SPACE_BYTE) {
-      false
-    } else {
-      val m = Arrays.mismatch(firstLine, sp, sp + url.length, url, 0, url.length)
-      m == -1
-    }
-  }
 
-  def fastMethodUrl(method: Method, url: Array[Byte]): Boolean = {
-    if (firstLine(0) == method.lFirst || firstLine(0) == method.uFirst) {
-      val methodLength = method.bytes.length
-      val urlLength = url.length
-      val urlStart = methodLength + 1
-      //url.length <= firstLine.length - method.bytes.length &&
-      firstLine(urlStart + urlLength) == SPACE_BYTE &&
-      Arrays.mismatch(firstLine, urlStart, urlLength + urlStart, url, 0, urlLength) == -1
-    } else false
-  }
+trait HttpMessage {
+  def headers: LinkedList[Header]
+  def body: Body
+  def version: HttpVersion
 
-
-  def methodEquals(method: Method): Boolean = ParsingUtils.caseInsensitiveSubstringMatch(firstLine, method.bytes)
-}
-
-
-case class BasicHttpResponse(code: ResponseCode, headers: Array[Header], body: Body)
-object BasicHttpResponse {
-  private val emptyHeaders = new Array[Header](0)
-  def apply(code: ResponseCode, body:Body): BasicHttpResponse = BasicHttpResponse(code, emptyHeaders, body)
+  def encodeFirstLine(buf: WriteBuffer): Unit
 }
 
 
 
-class BasicRoute(val method: Method, val fullUrl: String, val handler: BasicHttpRequest => Async[BasicHttpResponse]) {
-  private val flMatch = s"${method.name.toUpperCase} $fullUrl HTTP/1.1".getBytes
 
-  def isMatch(req: BasicHttpRequest) = Arrays.equals(req.firstLine, flMatch)
 
-}
-
-class BasicRouter(routeSeq: Seq[BasicRoute]) extends RequestHandler[BasicHttpRequest, BasicHttpResponse] {
-  var _context: Option[RequestHandlerContext] = None
-
-  private val routes = routeSeq.toArray
-  private val NoRouteResponse = Async.successful(BasicHttpResponse(ResponseCode.NotFound, Body.plain("unknown path")))
-
-  def handleRequest(input: BasicHttpRequest) = {
-    var i = 0
-    while (i < routes.length && !routes(i).isMatch(input)) { i += 1 }
-    if (i < routes.length) {
-      routes(i).handler(input)
-    } else {
-      NoRouteResponse
-    }
-  }
-
-  def handleError(req: Option[BasicHttpRequest], reason: Throwable) = BasicHttpResponse(
-    ResponseCode.Error,
-    Body.plain(reason.getMessage)
-  )
-
-  override def onInitialize(ctx: RequestHandlerContext): Unit = {
-    _context = Some(ctx)
-  }
-
-}
 
 case class ContentType(value: String) {
   val header = Header("Content-Type", value)
@@ -172,9 +133,9 @@ object ContentType {
 
 case class Body(data: Array[Byte], contentType: Option[ContentType]) {
 
-  def ok        = BasicHttpResponse(ResponseCode.Ok, this)
-  def error     = BasicHttpResponse(ResponseCode.Error, this)
-  def notFound  = BasicHttpResponse(ResponseCode.NotFound, this)
+  def ok        = HttpResponse(ResponseCode.Ok, this)
+  def error     = HttpResponse(ResponseCode.Error, this)
+  def notFound  = HttpResponse(ResponseCode.NotFound, this)
 
 }
 
@@ -195,30 +156,17 @@ object Body {
   def json(encoded: String) = Body(encoded.getBytes, Some(ContentType.`application/json`))
 }
 
-case class HttpServerSettings(
-  serverName: String,
-  server: ServerSettings,
-  commonHeaders: Seq[Header] = List(new DateHeader)
-)
+object HttpClient {
+  def futureClient(config: BasicClientConfig)(implicit pool: Pool) = {
+    new FutureClient(
+      env => client(config, env),
+      config
+    )
+  }
 
-object HttpServer {
-  def start(settings: HttpServerSettings, routes: Seq[BasicRoute]): Server.Server = {
-    implicit val pool = new Pool
-    val commonHeaders = (settings.commonHeaders :+ Header("Server", settings.serverName)).toArray
-    val factory: ConnectionContext => ServerConnectionHandler = ctx => {
-      new ServiceServer((x: BasicHttpRequest => Unit) => new HttpServerCodec(x, ctx.time, commonHeaders), new BasicRouter(routes))
-    }
-    Server.start(settings.server, factory, new RefreshOnDemandTimeKeeper(new RealTimeKeeper))
+  def client(config: BasicClientConfig, env: WorkEnv) = {
+    new BasicClient[HttpRequest, HttpResponse](f => new HttpClientCodec(f, env.time, new Array(0)), config, env)
   }
 }
 
-case class RouteBuilding2(method: Method, url: String) {
-  def to(handler: BasicHttpRequest => Async[BasicHttpResponse]) : BasicRoute = {
-    new BasicRoute(method, url, handler)
-  }
-
-  def to(syncResponse: => BasicHttpResponse): BasicRoute = to(_ => Async.successful(syncResponse))
-
-  def respondWith(response: BasicHttpResponse): BasicRoute = to(response)
-}
-
+  

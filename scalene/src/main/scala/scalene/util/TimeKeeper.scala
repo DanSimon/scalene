@@ -26,3 +26,17 @@ class RefreshOnDemandTimeKeeper(base: TimeKeeper) extends TimeKeeper {
   def nowMillis = cached
 
 }
+
+class TestTimeKeeper(initial: Long) extends TimeKeeper {
+
+  private var current = initial
+
+  def nowMillis = current
+
+  def refresh() = current
+
+  def set(newTime: Long): Unit = {
+    current = newTime
+  }
+
+}

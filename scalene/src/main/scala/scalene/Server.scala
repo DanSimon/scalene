@@ -1,5 +1,6 @@
 package scalene
 
+import java.util.concurrent.atomic.AtomicReference
 import java.net.{InetSocketAddress, ServerSocket, StandardSocketOptions}
 import java.nio.channels.{SelectionKey, Selector, ServerSocketChannel, SocketChannel}
 import scala.concurrent.duration.Duration
@@ -27,15 +28,24 @@ object WorkerToServerMessage {
   case object ConnectionClosed extends WorkerToServerMessage
 }
 
+sealed trait ServerState
+object ServerState {
+  case object Starting extends ServerState
+  case object Running extends ServerState
+  case object Terminated extends ServerState
+}
+
 private[this] case object SelectNow extends ServerMessage with NoWakeMessage
 
 class ServerActor(
   settings: ServerSettings,
-  handlerFactory: ConnectionContext => ServerConnectionHandler,
+  handlerFactory: WorkEnv => ServerConnectionHandler,
   timeKeeper: TimeKeeper,
+  state: AtomicReference[ServerState],
   context: Context
 ) extends Receiver[ServerMessage](context) with Logging {
 
+  implicit val der = context.dispatcher
   private var openConnections = 0
 
   val workers = collection.mutable.ArrayBuffer[Actor[ServerToWorkerMessage]]()
@@ -59,8 +69,10 @@ class ServerActor(
   serverSocketChannel.configureBlocking(false)
 
 
-
-
+  private val coSelect: Actor[SelectNow.type] = {
+    SimpleReceiver[SelectNow.type]{_ => self.send(SelectNow)}
+  }
+  
   val ss: ServerSocket = serverSocketChannel.socket()
   val addresses: Seq[InetSocketAddress] =
     settings.addresses.isEmpty match {
@@ -93,11 +105,21 @@ class ServerActor(
     self.send(SelectNow)
   }
 
+  override def onStop() {
+    super.onStop()
+    info("Shutting down Server")
+    state.set(ServerState.Terminated)
+    selector.close()
+    serverSocketChannel.close()
+
+  }
+
   def startServer() = {
     //setup the server
     try {
       addresses.foreach(address => ss.bind(address, settings.tcpBacklogSize.getOrElse(0)))
       info(s"name: Bound to ${addresses.mkString(", ")}")
+      state.set(ServerState.Running)
       true
     } catch {
       case t: Throwable => {
@@ -110,7 +132,7 @@ class ServerActor(
   def receive(s: ServerMessage) : Unit = s match {
     case SelectNow => {
       select()
-      self.send(SelectNow)
+      coSelect.send(SelectNow)
     }
     case WorkerToServerMessage.ConnectionClosed => {
       openConnections -= 1
@@ -153,13 +175,33 @@ class ServerActor(
 
 }
 
+class Server(stateReader: AtomicReference[ServerState], actor: Actor[ExternalServerMessage]) {
+
+  def state: ServerState = stateReader.get()
+
+  def shutdown(): Unit = actor.send(ExternalServerMessage.Shutdown)
+
+  def blockUntilReady(timeoutMillis: Long): Unit = {
+    val end = System.currentTimeMillis + timeoutMillis
+    while (state != ServerState.Running && System.currentTimeMillis < end) {
+      Thread.sleep(10)
+    }
+    if (state != ServerState.Running) {
+      throw new Exception("Timed out waiting for server to start")
+    }
+  }
+
+}
+
 object Server {
 
-  type Server = Actor[ExternalServerMessage]
-
-  def start(settings: ServerSettings, factory: ConnectionContext => ServerConnectionHandler, timeKeeper: TimeKeeper)(implicit pool: Pool): Actor[ExternalServerMessage] = {
+  def start(settings: ServerSettings, factory: WorkEnv => ServerConnectionHandler, timeKeeper: TimeKeeper)(implicit pool: Pool): Server = {
     val dispatcher = pool.createDispatcher
-    dispatcher.attach(ctx => new ServerActor(settings, factory, timeKeeper, ctx)).specialize[ExternalServerMessage]
+    val state = new AtomicReference[ServerState](ServerState.Starting)
+    val actor = dispatcher
+      .attach(ctx => new ServerActor(settings, factory, timeKeeper, state, ctx))
+      .specialize[ExternalServerMessage]
+    new Server(state, actor)
   }
 
 }

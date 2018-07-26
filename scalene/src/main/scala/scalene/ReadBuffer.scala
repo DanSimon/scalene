@@ -54,6 +54,8 @@ case class ReadBuffer(buffer: ByteBuffer) extends AnyVal {
 
   def clear() = buffer.clear()
 
+  def readString = new String(readAll)
+
 }
 
 object ReadBuffer {
