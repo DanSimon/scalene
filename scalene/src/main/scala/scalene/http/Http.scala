@@ -164,9 +164,14 @@ object HttpClient {
     )
   }
 
-  def client(config: BasicClientConfig, env: WorkEnv) = {
+  def client(config: BasicClientConfig, env: AsyncContext) = {
     new BasicClient[HttpRequest, HttpResponse](f => new HttpClientCodec(f, env.time, new Array(0)), config, env)
   }
+
+  def deferredClient(config: BasicClientConfig) = new DeferredClient(
+    env => client(config, env),
+    config
+  )
 }
 
   

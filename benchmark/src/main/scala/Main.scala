@@ -25,19 +25,25 @@ object Main extends App {
 
   val settings = HttpServerSettings(
     serverName = "scalene",
+    maxIdleTime = 10.seconds,
     server = ServerSettings(
       port = 9876,
       addresses = Nil,
       maxConnections = 4096,
       tcpBacklogSize = None,
       numWorkers = Some(1),
-      maxIdleTime = 10.seconds
     )
   )
 
   HttpServer.start(settings, List(
     Get url "/plaintext"  to Body.plain("Hello, World!").ok,
     Get url "/json"       to JsonMessage("Hello, World!").ok
+  ))
+
+  val client = HttpClient.deferredClient(BasicClientConfig.default("localhost", 9876))
+
+  HttpServer.start(settings.copy(serverName = "proxy", maxIdleTime = Duration.Inf, server = settings.server.copy(port = 6789)), List(
+    Get url "/plaintext" to client.send(HttpRequest.get("/plaintext"))
   ))
 
 

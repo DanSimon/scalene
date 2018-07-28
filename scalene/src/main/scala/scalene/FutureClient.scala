@@ -7,7 +7,7 @@ import microactor._
 import util._
 
 class FutureClient[Request, Response](
-  factory: WorkEnv => BasicClient[Request, Response],
+  factory: AsyncContext => BasicClient[Request, Response],
   config: BasicClientConfig
 )(implicit pool: Pool) {
 
@@ -16,7 +16,7 @@ class FutureClient[Request, Response](
 
   val receiver = SimpleReceiver[EventLoopEvent]{e => ()}
 
-  val eventLoop = new EventLoop(timeKeeper, Duration.Inf, receiver)
+  val eventLoop = new EventLoop(timeKeeper, receiver)
 
   val client = eventLoop.attachAndConnect[BasicClient[Request,Response]](config.address, factory)
 

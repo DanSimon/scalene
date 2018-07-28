@@ -88,7 +88,7 @@ extends ConnectionHandle {
 
   def timeIdle = channel.time() - math.max(lastReadTime, lastWriteTime)
 
-  def onInitialize(env: WorkEnv): Unit = handler.onInitialize(env)
+  def onInitialize(env: AsyncContext): Unit = handler.onInitialize(env)
 
   def onRead(buffer: ReadBuffer, wrt: ReadWriteBuffer): Unit = {
     _lastReadTime = channel.time()

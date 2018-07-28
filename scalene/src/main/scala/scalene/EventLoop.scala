@@ -27,7 +27,6 @@ object Select extends NoWakeMessage
 
 class EventLoop(
   timeKeeper: TimeKeeper,
-  idleTimeout: Duration,
   eventReceiver: Actor[EventLoopEvent]
 )(implicit dispatcher: Dispatcher)  extends Logging {
 
@@ -43,7 +42,7 @@ class EventLoop(
 
   private val timer = new Timer(50)
 
-  val environment = WorkEnv(timeKeeper, timer, dispatcher)
+  val environment = new AsyncContext(timeKeeper, timer, dispatcher, this)
 
   private val selectActor: Actor[Select.type] = SimpleReceiver[Select.type]{_ => 
     select()
@@ -92,13 +91,16 @@ class EventLoop(
 
   }
 
-  def attachConnection[T <: ConnectionHandler](channel: SocketChannel, handlerF: WorkEnv => T): T = {
+  def attachConnection[T <: ConnectionHandler](channel: SocketChannel, handlerF: AsyncContext => T): T = {
     val handler = handlerF(environment)
     attachInternal(channel, handler, true, SelectionKey.OP_READ)
     handler
   }
 
-  def attachAndConnect[T <: ConnectionHandler](address: InetSocketAddress, handlerF: WorkEnv => T): T = {
+  //TODO: handlerF probably doesn't need to be a function since it should be
+  //the case that anywhere this is called should already have access to the
+  //environment
+  def attachAndConnect[T <: ConnectionHandler](address: InetSocketAddress, handlerF: AsyncContext => T): T = {
     val channel = SocketChannel.open()
     channel.configureBlocking(false)
     try {
@@ -121,9 +123,8 @@ class EventLoop(
   }
 
   private def closeIdleConnections(): Unit = {
-    val timeoutTime = timeKeeper() - idleTimeout.toMillis
     val toClose = activeConnections.filter{case (_, c) => 
-      c.lastActivity < timeoutTime
+      c.handler.idleTimeout.isFinite && c.lastActivity < (timeKeeper() - c.handler.idleTimeout.toMillis)
     }
     toClose.foreach{case (_, c) => 
       removeConnection(c, DisconnectReason.TimedOut)

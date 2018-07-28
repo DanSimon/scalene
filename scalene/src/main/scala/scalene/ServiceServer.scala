@@ -1,12 +1,14 @@
 package scalene
 
 import java.util.LinkedList
+import scala.concurrent.duration._
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
 class ServiceServer[I,O](
   codecFactory: Codec.Factory[I,O],
-  requestHandler: RequestHandler[I,O]
+  requestHandler: RequestHandler[I,O],
+  val idleTimeout: Duration
 ) extends ServerConnectionHandler {
 
   private val codec = codecFactory(processRequest)
@@ -22,7 +24,7 @@ class ServiceServer[I,O](
     }
   }
 
-  def onInitialize(env: WorkEnv) {
+  def onInitialize(env: AsyncContext) {
   }
 
   var _handle: Option[ConnectionHandle] = None

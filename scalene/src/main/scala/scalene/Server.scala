@@ -12,8 +12,7 @@ case class ServerSettings(
   addresses: Seq[String],
   maxConnections: Int,
   tcpBacklogSize: Option[Int],
-  numWorkers: Option[Int],
-  maxIdleTime: Duration
+  numWorkers: Option[Int]
 )
 
 sealed trait ServerMessage
@@ -39,7 +38,7 @@ private[this] case object SelectNow extends ServerMessage with NoWakeMessage
 
 class ServerActor(
   settings: ServerSettings,
-  handlerFactory: WorkEnv => ServerConnectionHandler,
+  handlerFactory: AsyncContext => ServerConnectionHandler,
   timeKeeper: TimeKeeper,
   state: AtomicReference[ServerState],
   context: Context
@@ -90,7 +89,6 @@ class ServerActor(
         self.specialize[WorkerToServerMessage],
         handlerFactory,
         timeKeeper,
-        settings.maxIdleTime,
         ctx
       )).specialize[ServerToWorkerMessage]
       workers.append(actor)
@@ -195,7 +193,7 @@ class Server(stateReader: AtomicReference[ServerState], actor: Actor[ExternalSer
 
 object Server {
 
-  def start(settings: ServerSettings, factory: WorkEnv => ServerConnectionHandler, timeKeeper: TimeKeeper)(implicit pool: Pool): Server = {
+  def start(settings: ServerSettings, factory: AsyncContext => ServerConnectionHandler, timeKeeper: TimeKeeper)(implicit pool: Pool): Server = {
     val dispatcher = pool.createDispatcher
     val state = new AtomicReference[ServerState](ServerState.Starting)
     val actor = dispatcher

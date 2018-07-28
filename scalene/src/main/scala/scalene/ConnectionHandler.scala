@@ -1,8 +1,10 @@
 package scalene
 
+import scala.concurrent.duration._
+
 trait ConnectionHandler {
 
-  def onInitialize(env: WorkEnv)
+  def onInitialize(env: AsyncContext)
 
   def onReadData(buffer: ReadBuffer)
 
@@ -11,5 +13,7 @@ trait ConnectionHandler {
   def onConnected(handle: ConnectionHandle)
 
   def onDisconnected(reason: DisconnectReason)
+
+  def idleTimeout: Duration
 
 }

@@ -32,11 +32,12 @@ class ClientException(message: String) extends Exception(message)
 class BasicClient[Request,Response](
   factory: Codec.Factory[Response,Request],
   config: BasicClientConfig,
-  env: WorkEnv
+  env: AsyncContext
 ) extends ConnectionHandler with Logging {
 
   case class PendingRequest(request: Request, promise: PromiseAsync[Response], createdTS: Long)
 
+  val idleTimeout = Duration.Inf
 
   private val codec = factory(processResponse)
   private val pendingRequests = new LinkedList[PendingRequest]
@@ -77,7 +78,7 @@ class BasicClient[Request,Response](
     }
   }
 
-  def onInitialize(e: WorkEnv) {
+  def onInitialize(e: AsyncContext) {
   }
 
 
@@ -108,6 +109,7 @@ class BasicClient[Request,Response](
 
   def onDisconnected(reason: DisconnectReason) {
     //println(s"disconnected: $reason")
+    info("client disconnected")
     _handle = None
   }
 
