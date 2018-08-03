@@ -8,9 +8,10 @@ import microactor._
 import util._
 
 class BasicRoute(val method: Method, val fullUrl: String, val handler: HttpRequest => Deferred[HttpResponse]) {
-  private val flMatch = s"${method.name.toUpperCase} $fullUrl HTTP/1.1".getBytes
+  private val flMatch = s"${method.name.toUpperCase} $fullUrl".getBytes
+  private val flLength = flMatch.length
 
-  def isMatch(req: HttpRequest) = Arrays.equals(req.firstLine, flMatch)
+  def isMatch(req: HttpRequest) = Arrays.equals(req.firstLine, 0, flLength, flMatch, 0, flLength)
 
 }
 
@@ -49,12 +50,18 @@ case class HttpServerSettings(
 )
 
 object HttpServer {
+
+  type HttpRequestHandler = RequestHandler[HttpRequest, HttpResponse]
+
   def start(settings: HttpServerSettings, routes: Seq[BasicRoute])(implicit pool:Pool = new Pool): Server = {
-    //implicit val pool = new Pool
+    start(settings: HttpServerSettings, ctx => new BasicRouter(routes, ctx))
+  }
+
+  def start(settings: HttpServerSettings, requestHandlerFactory: AsyncContext => HttpRequestHandler)(implicit pool: Pool): Server = {
     val commonHeaders = (settings.commonHeaders :+ Header("Server", settings.serverName)).toArray
     val factory: AsyncContext => ServerConnectionHandler = ctx => {
       new ServiceServer((x: HttpRequest => Unit) => 
-          new HttpServerCodec(x, ctx.time, commonHeaders), new BasicRouter(routes, ctx), settings.maxIdleTime)
+          new HttpServerCodec(x, ctx.time, commonHeaders), requestHandlerFactory(ctx), settings.maxIdleTime)
     }
     Server.start(settings.server, factory, new RefreshOnDemandTimeKeeper(new RealTimeKeeper))
   }

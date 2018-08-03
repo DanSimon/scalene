@@ -1,3 +1,5 @@
+organization := "io.dsimon"
+
 scalaVersion := "2.12.4"
 
 lazy val root = (project in file("."))
@@ -17,6 +19,7 @@ lazy val benchmark = project
   )
 
 val scaleneSettings = Seq (
+  organization := "io.dsimon",
   libraryDependencies ++= Seq(
     "io.dsimon" %% "microactor" % "0.2.0-SNAPSHOT",
     "ch.qos.logback"               %  "logback-classic"      % "1.2.2",

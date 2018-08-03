@@ -23,7 +23,7 @@ object HttpVersion {
 
 
 class Method(val name: String) {
-  val bytes = name.getBytes   
+  val bytes = name.getBytes
 
   val lFirst = bytes(0)
   val uFirst = name.toUpperCase.getBytes()(0)
@@ -32,8 +32,15 @@ class Method(val name: String) {
 }
 
 object Method {
-  val Get   = new Method("GET")
-  val Post  = new Method("POST")
+  val Connect   = new Method("CONNECT")
+  val Delete    = new Method("DELETE")
+  val Get       = new Method("GET")
+  val Head      = new Method("HEAD")
+  val Options   = new Method("OPTIONS")
+  val Patch     = new Method("PATCH")
+  val Post      = new Method("POST")
+  val Put       = new Method("PUT")
+  val Trace     = new Method("TRACE")
 }
 
 case class ResponseCode(code: Int, codeMessage: String) {
@@ -43,14 +50,16 @@ case class ResponseCode(code: Int, codeMessage: String) {
 
 object ResponseCode {
   val Ok = ResponseCode(200, "OK")
+  val BadRequest = ResponseCode(400, "BAD REQUEST")
   val NotFound = ResponseCode(404, "NOT FOUND")
   val Error = ResponseCode(500, "ERROR")
 
-  val codes = Map[Int, ResponseCode](
-    200 -> Ok,
-    404 -> NotFound,
-    500 -> Error
-  )
+  val codes = Seq(
+    Ok,
+    BadRequest,
+    NotFound,
+    Error
+  ).map{c => (c.code, c)}.toMap
 
   def apply(intCode: Int): ResponseCode = codes(intCode)
 
@@ -86,7 +95,7 @@ class DateHeader(initialTime: Long = System.currentTimeMillis) extends Header{
   sdf.setTimeZone(TimeZone.getTimeZone("GMT"))
 
   val key = "Date"
-  val value = sdf.format(new Date(lastUpdated))
+  def value = sdf.format(new Date(lastUpdated))
 
   private var lastUpdated = initialTime
   private var lastDateString = createLine()
@@ -115,6 +124,31 @@ trait HttpMessage {
   def version: HttpVersion
 
   def encodeFirstLine(buf: WriteBuffer): Unit
+
+  def headerValue(key: String): Option[String] = {
+    val it = headers.iterator
+    var result: Option[String] = None
+    while (it.hasNext && result.isEmpty) {
+      val next = it.next
+      if (next.key == key) {
+        result = Some(next.value)
+      }
+    }
+    result
+  }
+
+  def headerValues(key: String): Array[String] = {
+    val builder = new LinkedList[String]
+    val it = headers.iterator
+    while (it.hasNext) {
+      val next = it.next
+      if (next.key == key) {
+        builder.add(next.value)
+      }
+    }
+    builder.toArray.asInstanceOf[Array[String]]
+  }
+
 }
 
 

@@ -154,7 +154,6 @@ class EventLoop(
           }
         }
       } else {
-        writeBuffer.reset()
         if (key.isReadable) {
           readBuffer.clear
           val sc: SocketChannel = key.channel().asInstanceOf[SocketChannel]
@@ -164,6 +163,7 @@ class EventLoop(
             if (len > -1) {
               readBuffer.flip
               val buffer = ReadBuffer(readBuffer, len)
+              writeBuffer.reset()
               manager.onRead(buffer, writeBuffer)
             } else {
               removeConnection(manager, DisconnectReason.RemoteClosed)
@@ -186,6 +186,7 @@ class EventLoop(
         if (key.isValid && key.isWritable) {
           val manager = key.attachment.asInstanceOf[ConnectionManager]
           try {
+                writeBuffer.reset()
                 manager.onWrite(writeBuffer)
           } catch {
             case e: java.io.IOException => {

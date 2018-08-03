@@ -82,6 +82,7 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
   }
 
   def reset() {
+    //println("RESET")
     current = base
     base.clear()
   }

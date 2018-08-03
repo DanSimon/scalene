@@ -1,5 +1,6 @@
 package scalene
 
+import scala.concurrent.Future
 import java.util.LinkedList
 import scala.util.{Failure, Success, Try}
 
@@ -82,6 +83,8 @@ object Async {
   def successful[T](value: T): Async[T] = ConstantAsync(Success(value))
 
   def failure[T](error: Throwable): Async[T] = ConstantAsync(Failure(error))
+
+  def fromFuture[T](f: Future[T])(implicit context: AsyncContext): Async[T] = context.futureToAsync(f)
 
 
 

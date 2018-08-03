@@ -115,10 +115,13 @@ extends ConnectionHandle {
         handler.onWriteData(buffer)
         if (!buffer.isEmpty) {
           val readBuffer = buffer.data
-          _bytesWritten += channel.write(readBuffer)
+          val written = channel.write(readBuffer)
+          _bytesWritten += written
           if (!readBuffer.isEmpty) {
+            println("overflow")
             writeOverflowBuffer = Some(readBuffer.readCopy)
           }
+          //println(s"${written} written : ${buffer.isEmpty}")
         } else {
           channel.disableWriteReady()
         }

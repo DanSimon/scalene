@@ -25,7 +25,7 @@ object Main extends App {
 
   val settings = HttpServerSettings(
     serverName = "scalene",
-    maxIdleTime = 10.seconds,
+    maxIdleTime = 60.seconds,
     server = ServerSettings(
       port = 9876,
       addresses = Nil,
@@ -35,9 +35,11 @@ object Main extends App {
     )
   )
 
+  val plainBody = Body("Hello, World!".getBytes, Some(ContentType.`text/plain`))
+
   HttpServer.start(settings, List(
-    Get url "/plaintext"  to Body.plain("Hello, World!").ok,
-    Get url "/json"       to JsonMessage("Hello, World!").ok
+    Get url "/plaintext"  to plainBody.ok,
+    Get url "/json"       to JsonMessage("Hello, World").ok
   ))
 
   val client = HttpClient.deferredClient(BasicClientConfig.default("localhost", 9876))

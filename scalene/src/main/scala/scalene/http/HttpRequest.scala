@@ -9,6 +9,13 @@ trait HttpRequest extends HttpMessage {
   def method: Method
   def url: String
 
+  lazy val (path, query) = {
+    val pieces = url.split("\\?", 2)
+    (pieces(0), if (pieces.size > 1) Some(pieces(1)) else None)
+  }
+
+  lazy val parameters = new QueryParameters(query.getOrElse(""))
+
   def urlBytes: Array[Byte]
 
   def firstLine: Array[Byte]
@@ -25,11 +32,49 @@ trait HttpRequest extends HttpMessage {
   
 }
 
+class QueryParameters(str: String) {
+
+  private val keyVals = str.split("&").toSeq.map{s => 
+    val p = s.split("=")
+    (p(0), p(1))
+  }
+
+  def firstValue(key: String): Option[String] = keyVals.collectFirst { case (k, v) if k == key => v }
+
+  def allValues(key: String): Seq[String] = keyVals.collect { case (k, v) if k == key => v }
+
+  def contains(key: String): Boolean = keyVals.exists { case (k, v) => k == key }
+
+}
+
+//firstLine does not include newline
 class ParsedHttpRequest(val firstLine: Array[Byte], val headers: LinkedList[Header], val body: Body) extends HttpRequest {
-  def url = ???
-  def urlBytes = ???
-  def version = ???
-  def method = ???
+  def urlBytes = url.getBytes
+  private def urlStart = method.bytes.length + 1
+  private def urlLength = firstLine.length - 9 - urlStart
+  lazy val url = new String(firstLine, urlStart, urlLength)
+
+  def version = if (firstLine(firstLine.length - 1) == '0'.toByte) HttpVersion.`1.0` else HttpVersion.`1.1`
+  lazy val  method = {
+    import Method._
+    def fail = throw new Exception(s"Invalid http method")
+    firstLine(0) match {
+      case 'G' => Get
+      case 'P' =>
+        firstLine(1) match {
+          case 'A' => Patch
+          case 'O' => Post
+          case 'U' => Put
+          case _   => fail
+        }
+      case 'D'   => Delete
+      case 'H'   => Head
+      case 'O'   => Options
+      case 'T'   => Trace
+      case 'C'   => Connect
+      case other => fail
+    }
+  }
 
   def urlEquals(url: Array[Byte]): Boolean = {
     val sp = {

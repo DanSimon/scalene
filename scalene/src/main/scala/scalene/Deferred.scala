@@ -1,6 +1,7 @@
 package scalene
 
 import java.util.concurrent.atomic.AtomicLong
+import scala.util.{Failure, Success, Try}
 
 trait GenericUniqueKey
 
@@ -44,6 +45,13 @@ class CapturedDeferred[T](cap: AsyncContext => Async[T]) extends Deferred[T] {
   def map[U](f: T => U): Deferred[U] = new CapturedDeferred(ctx => cap(ctx).map(f))
 
   def flatMap[U](f: T => Deferred[U]): Deferred[U] = new CapturedDeferred(ctx => cap(ctx).flatMap{t => f(t).resolve(ctx)})
+
+}
+
+object Deferred {
+  def successful[T](value: T): Deferred[T] = ConstantDeferred(ConstantAsync(Success(value)))
+
+  def failure[T](error: Throwable): Deferred[T] = ConstantDeferred(ConstantAsync(Failure(error)))
 
 }
 

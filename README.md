@@ -1,10 +1,12 @@
 # Scalene - Fast and Lightweight Scala I/O Framework
 
-Scalene is a multi-threaded, asynchronous, event-based TCP I/O framework
+Scalene is a multi-threaded, asynchronous, reactive TCP I/O framework
 primarily focused on building HTTP servers.
 
 Scalene aims to be the fastest HTTP framework on the JVM while also having a
-simple and efficient API.
+simple and efficient API.  It could also easily serve as a simple abstraction
+over NIO for generalized TCP applications, but for now this is not a
+first-class goal of the project.
 
 Take a look at the included [benchmark
 example](benchmark/src/main/scala/Main.scala) to get an idea of what things
@@ -17,18 +19,10 @@ on building out the core features and getting the framework into a
 production-ready state.  No artifacts are being published yet and test coverage
 is light at best.
 
-Roughly I see this project having 3 main stages
-
-1.  0.0.x phase (aka current prototype phase) - core development, things changing all the time, missing fundamental features
-2.  0.x phase - still lots of development, frequent breaking changes, but the basics should be built and stable enough to use in pet projects, non-production environments
-3.  x.0 phase - production-ready, proper semantic versioning and releases
-
-I currently have no roadmap for when it'll hit 0.x and what functionality it will have.
-
 ### Wanna Help?
 
 I'm excited to work with anyone who's interested in contributing to this
-project in any way!  
+project in any way!
 
 For small changes and bug fixes just open a PR and I'll get to it quickly.
 Ideally one such change per request, but it's ok to group them if they're
@@ -39,38 +33,24 @@ state of flux, I'd strongly recommend opening an issue detailing any changes
 you want to make before beginning your work.  I will have fairly strict
 standards about what I will merge in, so it's better we work together early on.
 
-## Origins
+### Origins
 
 Scalene is heavily influenced by Tumblr's Colossus framework, of which I was
-also the lead developer. Scalene though is not a fork of Colossus, but instead
-more like a re-imagining with some fairly fundamental design changes.  At least
-as of now no code from Colossus is being directly used in Scalene, though much
-of the core design is similar.  If at any point I do include original or
-modified code from Colossus I'll make it clear which files/classes they are and
-include the licensing information in the NOTICES file.  This will be more
-likely when I implement more of the Http, redis, and memcached protocols.
+also the creator and lead developer.  Scalene though is not a fork of Colossus, but instead
+more like a re-imagining with some fairly fundamental design changes.  
 
-### Why Scalene?
+The biggest commonality Scalene shares with Colossus is the general idea of
+maximizing concurrency while minimizing parallelism.  Like Colossus, Scalene
+aims to keep most I/O operations single-threaded, eliminating the overhead of
+context switching, but still asynchronous.  This is not so different from how
+other high-performance frameworks like vert.x and rapidoid behave.
 
-Why am I building a new framework and not simply doing a big overhaul of Colossus?  
 
-* Colossus already went through a few big overhauls which has left a fair
-  amount of legacy design decisions.  In particular Colossus was built for some
-use cases which I now think are not very realistic.  A lot of work went into
-making it easy to implement custom binary protocols, but in all honestly it's
-not very often that someone actually wants to implement a proprietary protocol.
-Scalene will aim to support basically just http and http/2 for server
-protocols, possibly gRPC and websocket.  This doesn't mean it will be
-particularly difficult to develop other protocols, but Scalene will not have a
-"library within a framework" for building protocols.
+Some of the bigger changes are:
 
-*   Colossus has had a relatively stable API for a while now.  Given the
-    differences I have made/planned with Scalene so far, it would be a highly
-disruptive set of changes to implement in Colossus; it really wouldn't even
-feel like the same framework.
-
-* Colossus is still owned and controlled by Tumblr, but seems to be inactive and unmaintained (I left Tumblr in mid 2017).
-
+* Replaced Akka with built-in specialized actor library.  Colossus only used Akka in a very basic and limited way, so I decided to build a dedicated slimmed-down version containing only what was needed.
+* Fully functional and declarative API.  IMO the biggest issue with Colossus was how it handled exposing worker threads to the user.  Scalene solves this by making the entire API declarative and more-or-less completely hides the complexity from the user.
+* Powerful routing DSL.  A dramatic improvement from Colossus's pattern-matching DSL, Scalene's HTTP routing combinators allow you to easily define complex routes that parse, filter, and extract typed values from http requests.
 
 ## Benchmarks
 
@@ -86,9 +66,18 @@ limited to 1 I/O thread.  I used wrk with 75 connections, 2 threads, pipeline
 depth of 16.  Benchmarks were run on my 4-core Intel 6700K 4.0Ghz desktop
 running Windows 10 with WSL.
 
-Scalene 1,041,538
+Scalene 721,068
 Rapidoid  595,252
 Colossus  357,922
+
+When allowing the number of I/O workers to be default (most are 4, some are 8), Scalene is basically on-par with
+Rapidoid, although I have less confidence in these numbers since such a large
+percentage of CPU is used by wrk itself and I don't think the servers are maxed out.
+
+Rapidoid 806,040
+Scalene 805,039
+Colossus 753,206
+Netty 749,442
 Finagle 191,574
-http4s
+http4s 78,971
 

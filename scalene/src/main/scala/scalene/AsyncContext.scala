@@ -3,6 +3,9 @@ package scalene
 import microactor._
 import util._
 
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
 class AsyncContext(
   val time: TimeKeeper,
   val timer: Timer,
@@ -20,6 +23,16 @@ class AsyncContext(
     val local = creator
     cache(key) = local
     local
+  }
+
+  val futureToAsyncExecutor = SimpleReceiver[() => Unit]{f => f()}
+
+  def futureToAsync[T](f: Future[T]): Async[T] = {
+    val p = new PromiseAsync[T]
+    f.onComplete{t => 
+      futureToAsyncExecutor.send(() => p.complete(t))
+    }
+    p
   }
 
 }
