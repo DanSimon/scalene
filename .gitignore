@@ -1,6 +1,7 @@
 *.class
 *.log
 *.swp
+*.swo
 
 # sbt specific
 .cache/
