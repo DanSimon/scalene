@@ -1,5 +1,5 @@
 
-package microactor
+package scalene.actor
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
@@ -135,8 +135,8 @@ class ActorHandle[T](
 }
 
 
-class Context private[microactor](untypedself: Actor[Any], _dispatcher: Dispatcher) {
-  private[microactor] def retypeSelf[T] = untypedself.asInstanceOf[Actor[T]]
+class Context private[scalene.actor](untypedself: Actor[Any], _dispatcher: Dispatcher) {
+  private[scalene.actor] def retypeSelf[T] = untypedself.asInstanceOf[Actor[T]]
 
   implicit val dispatcher = _dispatcher
 }

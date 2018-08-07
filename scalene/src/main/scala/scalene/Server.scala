@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.net.{InetSocketAddress, ServerSocket, StandardSocketOptions}
 import java.nio.channels.{SelectionKey, Selector, ServerSocketChannel, SocketChannel}
 import scala.concurrent.duration.Duration
-import microactor._
+import scalene.actor._
 import util._
 
 case class ServerSettings(

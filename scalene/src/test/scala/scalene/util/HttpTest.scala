@@ -4,7 +4,7 @@ package http
 import util._
 import Method._
 
-import microactor._
+import scalene.actor._
 import org.scalatest._
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._

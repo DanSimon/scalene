@@ -2,7 +2,7 @@ package example
 
 import shapeless.{HList, ::, HNil}
 import router._
-import microactor._
+import scalene.actor._
 import scalene._
 import scalene.http.{Method => HttpMethod, _}
 import scala.concurrent._

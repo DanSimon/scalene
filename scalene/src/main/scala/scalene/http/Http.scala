@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.{Arrays, Date, LinkedList, Locale, TimeZone}
 
-import microactor.Pool
+import scalene.actor.Pool
 import scalene._
 import scalene.util._
 

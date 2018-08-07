@@ -1,4 +1,4 @@
-package microactor
+package scalene.actor
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}

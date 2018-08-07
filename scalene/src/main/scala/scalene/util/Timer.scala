@@ -1,7 +1,7 @@
 package scalene.util
 
 import java.util.{LinkedList, TreeSet}
-import microactor._
+import scalene.actor._
 
 
 

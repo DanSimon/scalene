@@ -3,7 +3,7 @@ package http
 
 import java.util.{Arrays, LinkedList}
 import scala.concurrent.duration._
-import microactor._
+import scalene.actor._
 
 import util._
 

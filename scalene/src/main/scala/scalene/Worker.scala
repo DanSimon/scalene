@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 import scala.util.Try
 import scala.util.control.NonFatal
 
-import microactor._
+import scalene.actor._
 import util._
 
 

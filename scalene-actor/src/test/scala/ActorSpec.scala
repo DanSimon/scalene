@@ -1,4 +1,4 @@
-package microactor
+package scalene.actor
 
 import org.scalatest._
 import scala.concurrent.{Promise, Future}

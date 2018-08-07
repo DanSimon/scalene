@@ -1,6 +1,6 @@
 package scalene
 
-import microactor._
+import scalene.actor._
 import util._
 
 import scala.concurrent.Future

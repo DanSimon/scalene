@@ -4,7 +4,7 @@ package scalene.benchmark
 
 import java.nio.ByteBuffer
 import java.util.{Arrays, LinkedList}
-import microactor.Pool
+import scalene.actor.Pool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import scala.concurrent.duration._

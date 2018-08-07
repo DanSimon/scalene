@@ -1,6 +1,6 @@
 package scalene.util
 
-import microactor._
+import scalene.actor._
 import org.scalatest._
 import scala.concurrent.{Future, Promise}
 
