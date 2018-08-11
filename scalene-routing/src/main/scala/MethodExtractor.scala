@@ -1,4 +1,4 @@
-package router
+package scalene.routing
 
 import scalene.http.{Method => HttpMethod}
 import scala.annotation.implicitNotFound

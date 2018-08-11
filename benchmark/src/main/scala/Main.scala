@@ -1,17 +1,12 @@
 package scalene.benchmark
 
-
-
-import java.nio.ByteBuffer
-import java.util.{Arrays, LinkedList}
-import scalene.actor.Pool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import scala.concurrent.duration._
 import scalene._
 import scalene.http._
+import scalene.routing._
 import Body.BodyLifting
-import Method._
 
 object Main extends App {
 
@@ -35,18 +30,11 @@ object Main extends App {
     )
   )
 
-  val plainBody = Body("Hello, World!".getBytes, Some(ContentType.`text/plain`))
+  val routes = Routes(
+    GET + Url("/plaintext")  to {_ => Body.plain("Hello, World").ok},
+    GET + Url("/json")       to {_ => JsonMessage("Hello, World").ok}
+  )
 
-  HttpServer.start(settings, List(
-    Get url "/plaintext"  to plainBody.ok,
-    Get url "/json"       to JsonMessage("Hello, World").ok
-  ))
-
-  val client = HttpClient.deferredClient(BasicClientConfig.default("localhost", 9876))
-
-  HttpServer.start(settings.copy(serverName = "proxy", maxIdleTime = Duration.Inf, server = settings.server.copy(port = 6789)), List(
-    Get url "/plaintext" to client.send(HttpRequest.get("/plaintext"))
-  ))
-
+  Routing.start(settings, routes)
 
 }

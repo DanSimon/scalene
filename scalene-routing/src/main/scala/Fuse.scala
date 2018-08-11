@@ -1,4 +1,4 @@
-package router
+package scalene.routing
 
 import shapeless.{:: => :|:, _}
 import ops.hlist._

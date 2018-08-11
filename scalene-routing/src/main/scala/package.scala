@@ -1,4 +1,5 @@
-import scalene.Deferred
+package scalene
+
 import scalene.http.{Method => HttpMethod, _}
 import scala.annotation.implicitNotFound
 import scala.concurrent.{ExecutionContext, Future}
@@ -10,7 +11,7 @@ import syntax.std.function._
 import ops.function._
 
 
-package object router {
+package object routing extends RouteBuilderOps[HttpResponse] {
 
   type Raw = String //convert to databuffer eventually
 
@@ -24,7 +25,7 @@ package object router {
   type RouteResult[O] = Result[Deferred[O]]
   type BuiltRoute[I,O] = I => RouteResult[O]
 
-  type HttpRoute = BuiltRoute[RequestContext, HttpResponse]
+  type HttpRoute = Route[RequestContext, HttpResponse]
 
   object RequestFilter {
     def apply[O](f: RequestContext => Deferred[O]): Filter[RequestContext,O] = Filter(f)
@@ -70,5 +71,10 @@ package object router {
 
   val GET = Method(HttpMethod.Get)
   val POST = Method(HttpMethod.Post)
+
+
+  implicit class Futurize[T <: Any](val thing: T) extends AnyVal {
+    def future = Deferred.successful(thing)
+  }
 
 }

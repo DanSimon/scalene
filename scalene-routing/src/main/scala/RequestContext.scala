@@ -1,4 +1,4 @@
-package router
+package scalene.routing
 
 import scalene.http._
 
@@ -12,6 +12,10 @@ class LazyPathIterator(getUrl: () => String, startIndex: Int = 1) extends Iterat
     val res = pathComponents(currentIndex)
     currentIndex += 1
     res
+  }
+
+  def advance(num: Int): Unit = {
+    currentIndex += num
   }
 
   def cclone = new LazyPathIterator(getUrl, currentIndex)

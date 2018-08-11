@@ -154,7 +154,7 @@ class HttpServerCodec(
 ) 
 extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpResponse] {
 
-  def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
+  final def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
     onDecode(new ParsedHttpRequest(firstLine, headers, Body(body, None)))
   }
 
@@ -167,7 +167,7 @@ class HttpClientCodec(
 ) 
 extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpRequest] {
 
-  def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
+  final def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
     onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
   }
 

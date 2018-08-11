@@ -1,4 +1,4 @@
-package router
+package scalene.routing
 
 import scalene.Deferred
 import scalene.http._

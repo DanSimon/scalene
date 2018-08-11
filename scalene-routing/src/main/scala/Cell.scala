@@ -1,4 +1,4 @@
-package router
+package scalene.routing
 
 import scala.language.higherKinds
 
@@ -79,24 +79,24 @@ object AsCellComponent {
 }
 
 /**
- * This typeclass is used with AsCellComponent to turn a parser or a filter into a CellList 
+ * This typeclass is used with AsCellComponent to turn a parser or a filter into a RouteBuilder 
  */
-trait AsCellList[I <: Clonable[I], O, P[_,_]] {
+trait AsRouteBuilder[I <: Clonable[I], O, P[_,_]] {
   
   //needed because O is probably not a HList (maybe fix that?)
   type FixedOut <: HList 
 
-  def apply(p: P[I,O]): CellList[I,FixedOut]
+  def apply(p: P[I,O]): RouteBuilder[I,FixedOut]
 }
 
-object AsCellList {
+object AsRouteBuilder {
 
-  implicit def liftAsCellComponent[I <: Clonable[I], O, P[_,_]](implicit as: AsCellComponent[P], fuse: Fuse[HNil, O]) = new AsCellList[I,O,P] {
+  implicit def liftAsCellComponent[I <: Clonable[I], O, P[_,_]](implicit as: AsCellComponent[P], fuse: Fuse[HNil, O]) = new AsRouteBuilder[I,O,P] {
     type FixedOut = fuse.Out
-    def apply(p: P[I,O]): CellList[I,FixedOut] = CellList.cons(CellList.nil[I], as(p))
+    def apply(p: P[I,O]): RouteBuilder[I,FixedOut] = RouteBuilder.cons(RouteBuilder.nil[I], as(p))
   }
 
-  type Aux[I <: Clonable[I], O, P[_,_], L <: HList] = AsCellList[I,O,P]{ type FixedOut = L }
+  type Aux[I <: Clonable[I], O, P[_,_], L <: HList] = AsRouteBuilder[I,O,P]{ type FixedOut = L }
 
 }
 
@@ -104,60 +104,60 @@ object AsCellList {
 case class CellPhantom[I,O](cell: Cell[O]) extends CellComponent[I,O]
 
 /**
- * A CellList has three responsibilities.  First, it stores all the type
+ * A RouteBuilder has three responsibilities.  First, it stores all the type
  * information of a route, aka the HList of extracted values.  Second, it
- * builds the SList which handles the actual execution of the parsers/filters.
- * Lastly, it takes the VSet of extracted values produced by its SList and
+ * builds the RouteExecutor which handles the actual execution of the parsers/filters.
+ * Lastly, it takes the VSet of extracted values produced by its RouteExecutor and
  * constructs the output HList.
  */
-trait CellList[I <: Clonable[I], L <: HList] {
-  def buildSList : SList[I]
+trait RouteBuilder[I <: Clonable[I], L <: HList] {
+  def buildRouteExecutor : RouteExecutor[I]
   //def buildResolver: VSet => L
   def build(values: VSet): L
 
   def size: Int
 
-  def shallowClone: CellList[I,L]
+  def shallowClone: RouteBuilder[I,L]
 }
-object CellList {
+object RouteBuilder {
 
-  def nil[I <: Clonable[I]] = new CellList[I, HNil] {
-    def buildSList = SList[I](Nil, Nil)
+  def nil[I <: Clonable[I]] = new RouteBuilder[I, HNil] {
+    def buildRouteExecutor = RouteExecutor[I](Nil, Nil)
     def build(values: VSet) = HNil
 
     val size = 0
-    def shallowClone: CellList[I,HNil] = this
+    def shallowClone: RouteBuilder[I,HNil] = this
   }
 
-  def cons[I <: Clonable[I],O, L <: HList](prev : CellList[I, L], next: CellComponent[I,O])(implicit fuse: Fuse[L, O]): CellList[I, fuse.Out] = new CellList[I, fuse.Out] {
+  def cons[I <: Clonable[I],O, L <: HList](prev : RouteBuilder[I, L], next: CellComponent[I,O])(implicit fuse: Fuse[L, O]): RouteBuilder[I, fuse.Out] = new RouteBuilder[I, fuse.Out] {
 
     val size = prev.size + 1
-    val prevList = prev.buildSList
+    val prevList = prev.buildRouteExecutor
 
     val (slist, cell) = next match {
       case p @ CellParser(_) => {
         val (wrapped, cell) = p.wrapped(size - 1)
-        (SList(prevList.parsers :+ wrapped, prevList.filters), cell)
+        (RouteExecutor(prevList.parsers :+ wrapped, prevList.filters), cell)
       }
       case f @ CellFilter(_) => {
         val (wrapped, cell) = f.wrapped(size - 1)
-        (SList(prevList.parsers, prevList.filters :+ wrapped), cell)
+        (RouteExecutor(prevList.parsers, prevList.filters :+ wrapped), cell)
       }
       case CellPhantom(cell) => {
-        (SList(prevList.parsers, prevList.filters), cell)
+        (RouteExecutor(prevList.parsers, prevList.filters), cell)
       }
     }
-    val buildSList = slist
+    val buildRouteExecutor = slist
     def build(values: VSet): fuse.Out = fuse.fuse(prev.build(values), cell.get(values))
 
     def shallowClone = cons(prev.shallowClone, CellPhantom(cell))
 
   }
 
-  def mapped[I <: Clonable[I], L <: HList, O](nested: CellList[I, L], map: L => O)(implicit f: Fuse[HNil, O]): CellList[I, f.Out] = new CellList[I,f.Out] {
+  def mapped[I <: Clonable[I], L <: HList, O](nested: RouteBuilder[I, L], map: L => O)(implicit f: Fuse[HNil, O]): RouteBuilder[I, f.Out] = new RouteBuilder[I,f.Out] {
 
     val size = nested.size 
-    def buildSList = nested.buildSList
+    def buildRouteExecutor = nested.buildRouteExecutor
 
     def build(values: VSet): f.Out = f.fuse(HNil, map(nested.build(values)))
 

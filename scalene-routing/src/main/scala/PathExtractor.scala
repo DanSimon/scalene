@@ -1,4 +1,4 @@
-package router
+package scalene.routing
 
 import scalene._
 import http.{Method => HttpMethod, _}
@@ -131,4 +131,75 @@ case class Url(url: String) extends Parser[RequestContext, HNil] {
 }
 
 
+object NewPath {
+
+  trait PathParser[T] extends Parser[RequestContext, T]
+
+  class ConstantPrefixPath(prefixPieces: List[String]) extends PathParser[HNil] {
+    val pieces = prefixPieces.flatMap{_.split("/")}.filter{_ != ""}
+    val prefix = "/" + pieces.mkString("/")
+
+    def parse(ctx: RequestContext): Result[HNil] = ???
+
+  }
+
+  class ExtractionSegmentParser[T](formatter: Parser[Raw,T]) extends PathParser[T] {
+    def parse(components: RequestContext): Result[T] = if (components.hasNext) {
+      formatter.parse(components.next).left.map{e => e.copy(reason = ErrorReason.NotFound)}
+    } else {
+      Left(ParseError.notFound("expected component"))
+    }
+  }
+
+  implicit class PathCombine[A](val a: A) {
+    def /[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
+  }
+
+  object PathCombine {
+    //TODO : Strings might be "a/b" form
+    //
+
+
+    implicit def combineStringString = new RouteBuilderCombiner[String, String] {
+      type Out = ConstantPrefixPath
+      def apply(a: String, b: String): ConstantPrefixPath = new ConstantPrefixPath(a :: b :: Nil)
+    }
+
+    implicit def combinePrefixString = new RouteBuilderCombiner[ConstantPrefixPath, String] {
+      type Out = ConstantPrefixPath
+      def apply(a: ConstantPrefixPath, b: String): ConstantPrefixPath = new ConstantPrefixPath(a.pieces :+ b)
+    }
+
+    implicit def combineParserExtraction[A, B](implicit 
+      comb: RouteBuilderCombiner[PathParser[A],ExtractionSegmentParser[B]],
+      formatter: Parser[Raw, B]
+    ) = new RouteBuilderCombiner[PathParser[A], Extract[B]] {
+      type Out = comb.Out
+      def apply(a: PathParser[A], b: Extract[B]): Out = {
+        val extractor = new ExtractionSegmentParser[B](formatter)
+        comb(a, extractor)
+      }
+    }
+
+    implicit def combineStringExtraction[A](implicit
+      comb: RouteBuilderCombiner[PathParser[HNil], ExtractionSegmentParser[A]],
+      formatter: Parser[Raw, A]
+    ) = new RouteBuilderCombiner[String, Extract[A]] {
+      type Out = comb.Out
+      def apply(a: String, b: Extract[A]): Out = comb(new ConstantPrefixPath(a :: Nil), new ExtractionSegmentParser(formatter))
+    }
+
+  }
+
+  import PathCombine._
+
+  val test1 = "foo" / "bar"
+
+  val test2 = "foo" / ![Int] / "baz"
+
+
+
+
+
+}
 

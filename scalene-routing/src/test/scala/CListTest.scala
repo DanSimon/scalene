@@ -1,4 +1,4 @@
-package router
+package scalene.routing
 
 import org.scalatest._
 import shapeless._

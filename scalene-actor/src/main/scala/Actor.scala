@@ -135,8 +135,8 @@ class ActorHandle[T](
 }
 
 
-class Context private[scalene.actor](untypedself: Actor[Any], _dispatcher: Dispatcher) {
-  private[scalene.actor] def retypeSelf[T] = untypedself.asInstanceOf[Actor[T]]
+class Context private[actor](untypedself: Actor[Any], _dispatcher: Dispatcher) {
+  private[actor] def retypeSelf[T] = untypedself.asInstanceOf[Actor[T]]
 
   implicit val dispatcher = _dispatcher
 }
