@@ -55,10 +55,7 @@ trait LowPriorityRouteBuilderCombiners {
 }
 
 object RouteBuilderCombiner extends LowPriorityRouteBuilderCombiners {
-  implicit def optimizedMethodUrlCombiner = new RouteBuilderCombiner[Method, Url] {
-    type Out = Parser[RequestContext, HNil] //ExactMatchPath
-    def apply(a: Method, b: Url) = new ExactMatchPath(a.method,b.url)
-  }
+
 }
 
 @implicitNotFound("Result must be a ${Out}, Deferred[${Out}], or have an implicit AsResponse[${T}, ${Out}] in scope")

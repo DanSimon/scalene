@@ -11,15 +11,12 @@ import syntax.std.function._
 import ops.function._
 
 
-package object routing extends RouteBuilderOps[HttpResponse] {
+package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
 
   type Raw = String //convert to databuffer eventually
 
   type Result[T] = Either[ParseError, T]
 
-  type ContinuedParser[I,O] = Parser[I, (I,O)]
-  type PathIn = Iterator[String]
-  type PathParser[O] = Parser[PathIn, O]
   type RequestParser[O] = Parser[RequestContext, O]
 
   type RouteResult[O] = Result[Deferred[O]]
@@ -55,19 +52,24 @@ package object routing extends RouteBuilderOps[HttpResponse] {
   def ![T] = Extract[T]()
 
 
+
   /**
    * wildcard Accept-all path parser, should be used at the end of a path.
    */
+  /*
   val * : PathParser[HNil] = new PathParser[HNil] {
     def parse(components: PathIn) = Right(HNil)
   }
+  */
 
   /**
    * Similar to the `*` parser but also captures the remainder as a string
    */
+  /*
   val !* : PathParser[String] = new PathParser[String] {
     def parse(components: PathIn) = Right(components.mkString("/"))
   }
+  */
 
   val GET = Method(HttpMethod.Get)
   val POST = Method(HttpMethod.Post)
