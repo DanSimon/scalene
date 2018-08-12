@@ -12,6 +12,35 @@ Take a look at the included [benchmark
 example](benchmark/src/main/scala/Main.scala) to get an idea of what things
 will look like.
 
+## Features
+
+### Powerful Routing DSL
+
+Scalene not only makes it easy to define complex routes, but also extract and
+manipulate data from requests in a fluid and typesafe way.
+
+```scala
+
+val route = GET / "foo" / ![Int] / ![String] to {case i :: s :: HNil => s"Got an int $i and a string $s".ok}
+//>curl localhost/foo/3/hello
+//(200 OK) Got an int 3 and a string hello
+//
+//>curl localhost/foo/hello/3
+//(400 BAD_REQUEST) expected Integer in path segment, got 'hello'
+
+case class Foo(i: Int, s: String)
+
+val route2 = "foo"  subroutes { base =>
+  base + GET / ![Int] to {case i :: HNil => 
+    foodb.get(id).map{f => s"got $f".ok}
+  },
+  base + PUT / (![Int].filter{_ > 0} / ![String] >> Foo) to {case foo :: HNil =>
+    foodb.create(foo).map{f => s"created $f".ok}
+  }
+}
+//>curl -X PUT localhost/4
+
+
 ## Current State 
 
 Currently this project is in a very early prototype phase.  I'm still working
@@ -66,18 +95,23 @@ limited to 1 I/O thread.  I used wrk with 75 connections, 2 threads, pipeline
 depth of 16.  Benchmarks were run on my 4-core Intel 6700K 4.0Ghz desktop
 running Windows 10 with WSL.
 
-Scalene 721,068
+framework| requests/second
+--- | ---
+Scalene 741,068
 Rapidoid  595,252
 Colossus  357,922
 
-When allowing the number of I/O workers to be default (most are 4, some are 8), Scalene is basically on-par with
-Rapidoid, although I have less confidence in these numbers since such a large
-percentage of CPU is used by wrk itself and I don't think the servers are maxed out.
+When allowing the number of I/O workers to be default (most are 4, some are 8),
+Scalene is basically on-par with Rapidoid, although I have less confidence in
+these numbers since such a large percentage of CPU is used by wrk itself and I
+don't think the servers anywhere close to being maxed out.
 
-Rapidoid 806,040
-Scalene 805,039
-Colossus 753,206
-Netty 749,442
-Finagle 191,574
-http4s 78,971
+framework| requests/second
+--- | ---
+Rapidoid | 806,040
+Scalene | 805,039
+Colossus | 753,206
+Netty | 749,442
+Finagle | 191,574
+http4s | 78,971
 

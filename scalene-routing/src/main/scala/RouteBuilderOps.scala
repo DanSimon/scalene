@@ -108,29 +108,6 @@ trait RouteBuilderOps[FinalOut] {
         def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[O] = slist.executeParsers(input, values) flatMap {unit =>
           //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
           val nextFilters = collectedFilters ++ slist.filters
-          var res: RouteResult[O] = notFoundError
-          var nextInput = input
-          var i = 0
-          while (i < subroutes.length) {
-            subroutes(i).execute(nextInput, nextFilters, values) match {
-              case success @ Right(_) => {
-                res = success
-                i = subroutes.length + 1
-              }
-              case Left(err) => err.reason match {
-                case ErrorReason.NotFound   => {
-                  i += 1
-                  nextInput = input.cclone
-                }
-                case ErrorReason.BadRequest => {
-                  res = Left(err)
-                  i = subroutes.length + 1
-                }
-              }
-            }
-          }
-          res
-          /*
           subroutes.foldLeft[RouteResult[O]](notFoundError){
             case (success @ Right(res), next) => success
             case (Left(err), next)  => err.reason match {
@@ -138,7 +115,6 @@ trait RouteBuilderOps[FinalOut] {
               case ErrorReason.BadRequest => Left(err)
             }
           }
-          */
         }
       }
 
@@ -164,6 +140,16 @@ trait RouteBuilderOps[FinalOut] {
       }
     }
 
+    //note - don't think you can combine all these methods to simply be generic
+    //and make the typeclass handle the function, seems to break type inference
+
+    def to[N <: Nat](const: FinalOut)(implicit len: Length.Aux[L, N], nat: ToInt[N]): Route[I,FinalOut] = {
+      to(_ => const)
+    }
+
+    def to[N <: Nat](const: Deferred[FinalOut])(implicit len: Length.Aux[L, N], nat: ToInt[N]): Route[I,FinalOut] = {
+      to(_ => const)
+    }
   }
 }
 

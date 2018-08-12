@@ -30,9 +30,11 @@ object Main extends App {
     )
   )
 
+  val plainBody = Body.plain("Hello, World")
+
   val routes = Routes(
-    GET / "plaintext" to {_ => Body.plain("Hello, World").ok},
-    GET / "json"      to {_ => JsonMessage("Hello, World").ok}
+    GET / "plaintext" to plainBody.ok,
+    GET / "json"      to JsonMessage("Hello, World").ok
   )
 
   Routing.start(settings, routes)
