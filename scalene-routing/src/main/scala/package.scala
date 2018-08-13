@@ -75,8 +75,8 @@ package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
   val POST = Method(HttpMethod.Post)
 
 
-  implicit class Futurize[T <: Any](val thing: T) extends AnyVal {
-    def future = Deferred.successful(thing)
-  }
+  //re-export some stuff from core and http
+  type Settings = HttpServerSettings
+  val Settings = HttpServerSettings
 
 }

@@ -86,12 +86,12 @@ trait RouteBuilderOps[FinalOut] {
     def +[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
   }
 
-  implicit class CellComponentOps[I <: Clonable[I], O, P[_,_], L <: HList]
+  implicit class CellComponentOps[I <: Clonable[I], O, P[_,_], L <: HList, T]
     (p: P[I,O])
-    (implicit as: AsRouteBuilder.Aux[I,O, P, L])
-    extends RouteBuilderOps[I, L](as(p))
+    (implicit as: AsRouteBuilder.Aux[I,O, P, L], tupler: Tupler.Aux[L,T])
+    extends RouteBuilderOps[I, L, T](as(p))
 
-  implicit class RouteBuilderOps[I <: Clonable[I], L <: HList](val builder: RouteBuilder[I,L]) {
+  implicit class RouteBuilderOps[I <: Clonable[I], L <: HList , T](val builder: RouteBuilder[I,L])(implicit tupler: Tupler.Aux[L,T]) {
     def map[U](f: L => U)(implicit fuse: Fuse[HNil, U]): RouteBuilder[I,fuse.Out] = {
       RouteBuilder.mapped(builder, f)
     }
@@ -120,7 +120,7 @@ trait RouteBuilderOps[FinalOut] {
 
     }
 
-    def to[O, N <: Nat](completion: L => O)(implicit len: Length.Aux[L, N], nat: ToInt[N], as: AsResponse[O, FinalOut]): Route[I,FinalOut] = {
+    def to[O, N <: Nat](completion: T => O)(implicit len: Length.Aux[L, N], nat: ToInt[N], as: AsResponse[O, FinalOut]): Route[I,FinalOut] = {
       val slist = builder.buildRouteExecutor
       new Route[I,FinalOut] {
         final val vsetSize = nat()
@@ -128,10 +128,10 @@ trait RouteBuilderOps[FinalOut] {
         final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) match {
           case Right(_) => Right (
             if (collectedFilters.isEmpty && slist.filters.isEmpty) {
-              as(completion(builder.build(values)))
+              as(completion(tupler(builder.build(values))))
             } else {
               slist.executeFilters(input, collectedFilters, values) flatMap { _ => 
-                as(completion(builder.build(values)))
+                as(completion(tupler(builder.build(values))))
               }
             }
           )

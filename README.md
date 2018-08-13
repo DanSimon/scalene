@@ -38,7 +38,10 @@ val route2 = "foo"  subroutes { base =>
     foodb.create(foo).map{f => s"created $f".ok}
   }
 }
-//>curl -X PUT localhost/4
+//>curl -X PUT localhost/4/hello
+//(200 OK) created Foo(4, hello)
+//
+```
 
 
 ## Current State 
