@@ -64,9 +64,9 @@ object ParameterExtractorProvider {
     def provide(extraction: T): ParameterExtractor[HNil] = ParameterExtractor.literal[T](extraction)
   }
 
-  implicit def extractProvider[T](implicit extractor: ParameterExtractor[T]) = new ParameterExtractorProvider[Extract[T]] {
+  implicit def extractProvider[T](implicit extractor: ParameterExtractor[T]) = new ParameterExtractorProvider[Extraction[T, T]] {
     type Out = T
-    def provide(extraction: Extract[T]): ParameterExtractor[T] = extractor
+    def provide(extraction: Extraction[T, T]): ParameterExtractor[T] = extractor
   }
 
 }

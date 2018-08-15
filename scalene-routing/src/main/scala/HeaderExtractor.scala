@@ -64,9 +64,10 @@ object HeaderExtractorProvider {
     def provide(extraction: T): HeaderExtractor[HNil] = HeaderExtractor.literal[T](extraction)
   }
 
-  implicit def extractProvider[T](implicit extractor: HeaderExtractor[T]) = new HeaderExtractorProvider[Extract[T]] {
+  //TODO: All this needs to be reworked to support mapped extractions
+  implicit def extractProvider[T](implicit extractor: HeaderExtractor[T]) = new HeaderExtractorProvider[Extraction[T, T]] {
     type Out = T
-    def provide(extraction: Extract[T]): HeaderExtractor[T] = extractor
+    def provide(extraction: Extraction[T, T]): HeaderExtractor[T] = extractor
   }
 
 }

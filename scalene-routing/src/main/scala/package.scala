@@ -10,6 +10,8 @@ import ops.hlist._
 import syntax.std.function._
 import ops.function._
 
+//note - seems there's a compiler bug when trying to import this package in
+//console, causes some kind of cyclic inheritance error
 
 package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
 
@@ -44,12 +46,7 @@ package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
   //parser tokens
   
 
-  /**
-   * A "token" type used in parsers, indicates a value should be extracted at
-   * this location
-   */
-  case class Extract[T]() 
-  def ![T] = Extract[T]()
+  def ![T]: Extraction[T,T] = IdentityExtraction[T]()
 
 
 

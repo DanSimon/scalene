@@ -1,6 +1,7 @@
 
 val baseSettings = Seq(
   organization := "io.dsimon",
+  addCompilerPlugin("io.tryp" % "splain" % "0.3.1" cross CrossVersion.patch),
   scalaVersion := "2.12.4",
   libraryDependencies ++= Seq(
     "ch.qos.logback"               %  "logback-classic"      % "1.2.2",
@@ -12,7 +13,7 @@ val baseSettings = Seq(
 
 lazy val root = (project in file("."))
   .settings(baseSettings)
-  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark)
+  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples)
 
 lazy val `scalene-actor` = project
   .settings(baseSettings)
@@ -41,3 +42,7 @@ val benchmarkSettings = baseSettings ++ Seq(
 lazy val benchmark = project
   .dependsOn(scalene, `scalene-routing`)
   .settings(benchmarkSettings)
+
+lazy val examples = project
+  .dependsOn(`scalene-routing`)
+  .settings(baseSettings)

@@ -2,18 +2,20 @@ package examples
 
 import scalene.routing._
 
-class MyController {
-
-  def sum(a: Int, b: Int): Int = a + b
-
-}
-
 object Main extends App {
 
-  val settings = HttpServerSettings.basic(name = "examples", port = 8080)
+  //val settings = Settings.basic(name = "examples", port = 8080)
 
-  val controller = new MyController
+  case class Foo(i: Int, s: String)
+  val parseFooFromPath = ![Int] / ![String] >> Foo
+
+  val fooRoutes = "foo" subroutes {base =>
+    base + POST + parseFooFromPath to {foo => s"got a foo $foo".ok}
+  }
 
   val routes = Routes(
-    GET + Path(RT / "sum" / ![Int] / ![Int]) to controller.sum,
-    PUT + Path(R
+    GET / "sum" / ![Int] / ![Int] to {case (a,b) => (a + b).ok},
+    GET / "quotient" / ![Int] / ![Int].filter{_ != 0} to {case (a,b) => (a / b).ok}
+  )
+
+}

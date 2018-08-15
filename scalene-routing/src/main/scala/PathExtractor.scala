@@ -10,10 +10,7 @@ import ops.hlist._
 import syntax.std.function._
 import ops.function._
 
-
-trait PathParser[T] extends Parser[RequestContext, T]
-
-case class ConstantPrefixPath(prefixPieces: List[String]) extends PathParser[HNil] {
+case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[RequestContext, HNil] {
   val pieces = prefixPieces.flatMap{_.split("/")}.filter{_ != ""}
   val prefix = "/" + pieces.mkString("/")
   
@@ -25,7 +22,7 @@ case class ConstantPrefixPath(prefixPieces: List[String]) extends PathParser[HNi
 
 }
 
-class ExtractionSegmentParser[T](formatter: Parser[Raw,T]) extends PathParser[T] {
+class ExtractionSegmentParser[T](formatter: Parser[Raw,T]) extends Parser[RequestContext, T] {
   def parse(components: RequestContext): Result[T] = if (components.hasNext) {
     formatter.parse(components.next).left.map{e => e.copy(reason = ErrorReason.NotFound)}
   } else {
@@ -46,8 +43,59 @@ case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extend
   }
 }
 
+trait AsPathParser[T] {
+  type Out
+  def apply(in : T): Parser[RequestContext, Out]
+}
+
+object AsPathParser {
+
+  type Aux[A,B] = AsPathParser[A]{type Out = B}
+
+  implicit def LiteralParser: AsPathParser[String] = new AsPathParser[String] {
+    type Out = HNil
+    def apply(in: String) = ConstantPrefixPath(in :: Nil)
+  }
+
+  implicit def extractionParser[A,B](implicit formatter: Parser[Raw, A]) = new AsPathParser[Extraction[A,B]] {
+    type Out = B
+    def apply(in: Extraction[A,B]) = in.extraction(new ExtractionSegmentParser(formatter))
+  }
+
+  implicit def identity[T, P <: Parser[RequestContext, T]] = new AsPathParser[P] {
+    type Out = T
+    def apply(p: P) = p
+  }
+
+  
+
+  implicit val p = identity[HNil, ExactMatchPath]
+
+}
+
+trait LowPriorityPathParsing {
+
+  implicit def combineTwoThings[A, B, AOut, BOut](implicit 
+    asA: AsPathParser.Aux[A, AOut],
+    asB: AsPathParser.Aux[B, BOut],
+    comb: RouteBuilderCombiner[Parser[RequestContext, AOut], Parser[RequestContext, BOut]]
+  ) = new RouteBuilderCombiner[A, B] {
+    type Out = comb.Out
+    def apply(a: A, b: B): Out = comb(asA(a), asB(b))
+  }
+
+  implicit def extendRouteBuilder[L <: HList, A, AOut](implicit
+    asA: AsPathParser.Aux[A, AOut],
+    comb: RouteBuilderCombiner[RouteBuilder[RequestContext, L], Parser[RequestContext, AOut]]
+  ) = new RouteBuilderCombiner[RouteBuilder[RequestContext, L], A] {
+    type Out = comb.Out
+    def apply(builder: RouteBuilder[RequestContext, L], a: A): Out = comb(builder, asA(a))
+  }
+
+}
+
 //mixed into package object
-trait PathParsing {
+trait PathParsing extends LowPriorityPathParsing {
 
   implicit class PathCombine[A](val a: A) {
     def /[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
@@ -73,24 +121,4 @@ trait PathParsing {
     def apply(a: Method, b: String) = ExactMatchPath(a.method, ConstantPrefixPath(b :: Nil))
   }
 
-  implicit def combineParserExtraction[A, B](implicit 
-    comb: RouteBuilderCombiner[PathParser[A],ExtractionSegmentParser[B]],
-    formatter: Parser[Raw, B]
-  ) = new RouteBuilderCombiner[PathParser[A], Extract[B]] {
-    type Out = comb.Out
-    def apply(a: PathParser[A], b: Extract[B]): Out = {
-      val extractor = new ExtractionSegmentParser[B](formatter)
-      comb(a, extractor)
-    }
-  }
-
-  implicit def combineStringExtraction[A](implicit
-    comb: RouteBuilderCombiner[PathParser[HNil], ExtractionSegmentParser[A]],
-    formatter: Parser[Raw, A]
-  ) = new RouteBuilderCombiner[String, Extract[A]] {
-    type Out = comb.Out
-    def apply(a: String, b: Extract[A]): Out = comb((new ConstantPrefixPath(a :: Nil)) : PathParser[HNil], new ExtractionSegmentParser(formatter))
-  }
-
 }
-
