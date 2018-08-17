@@ -44,55 +44,20 @@ trait Route[I,O] {
 
   def toFilter: Filter[I,O] = Filter(toCompleteRoute)
 }
-object Route {
-
-  type Completion[I <: Clonable[I], F <: HList, O] = RouteBuilder[I, F] => Route[I, O]
-
-  def apply[L <: HList](builder: Completion[RequestContext, L, HttpResponse]) = builder
-
-}
 
 object Routes {
 
+  /*
   def apply(routes: HttpRoute*): HttpRoute = {
-    RouteBuilder.nil[RequestContext].subroutes(routes.map{route => (n: RouteBuilder[RequestContext, HNil]) => route}: _*)
+    ???
+    //RouteBuilder.nil[RequestContext].subroutes(routes.map{route => (n: RouteBuilder[RequestContext, HNil]) => route}: _*)
   }
+  */
 
 }
 
 
 
-/*
- * A RouteExecutor represents a fully constructed route parser.  It handles the actual
- * execution of the routes parsers and filters, accumulating the extracted
- * values into a VSet.  A corrosponding RouteBuilder handles properly typing the
- * extracted values into a result HList
- */
-case class RouteExecutor[I <: Clonable[I]](parsers: List[WrappedParser[I]], filters: List[WrappedFilter[I]]) {
-  def size = parsers.size + filters.size
-
-  private val unitRight = Right(())
-  private val arr = parsers.toArray
-
-  def executeParsers(input: I, values: VSet): Result[Unit] = {
-    var res: Result[Unit] = unitRight
-    var i = 0
-    while (i < arr.length && res.isRight) {
-      res = arr(i).parse(input, values)
-      i += 1
-    }
-    res
-  }
-
-
-  def executeFilters(input: I, prevFilters: List[WrappedFilter[I]], values: VSet): Deferred[Unit] = {
-    (prevFilters ++ filters).foldLeft[Deferred[Unit]](defer{ _ => Async.successful(())}){case (build, next) =>
-      build.flatMap {_ =>
-        next.parse(input, values)
-      }
-    }
-  }
-}
 
 
 

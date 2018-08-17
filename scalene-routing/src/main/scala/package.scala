@@ -10,10 +10,7 @@ import ops.hlist._
 import syntax.std.function._
 import ops.function._
 
-//note - seems there's a compiler bug when trying to import this package in
-//console, causes some kind of cyclic inheritance error
-
-package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
+package object routing {
 
   type Raw = String //convert to databuffer eventually
 
@@ -23,8 +20,6 @@ package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
 
   type RouteResult[O] = Result[Deferred[O]]
   type BuiltRoute[I,O] = I => RouteResult[O]
-
-  type HttpRoute = Route[RequestContext, HttpResponse]
 
   object RequestFilter {
     def apply[O](f: RequestContext => Deferred[O]): Filter[RequestContext,O] = Filter(f)
@@ -37,6 +32,20 @@ package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
 
   }
 
+  def ![T]: Extraction[T,T] = IdentityExtraction[T]()
+
+}
+
+
+package object httprouting 
+extends routing.RouteBuilderOps[routing.RequestContext, HttpResponse] 
+with routing.RouteBuilding[routing.RequestContext, HttpResponse]
+with routing.PathParsing {
+
+  import routing._
+
+  type HttpRoute = Route[RequestContext, HttpResponse]
+
   //default formatters
 
   implicit val stringFormatter: Formatter[String] = StringF
@@ -44,9 +53,7 @@ package object routing extends RouteBuilderOps[HttpResponse] with PathParsing {
   implicit val boolF : Formatter[Boolean] = BooleanF
 
   //parser tokens
-  
 
-  def ![T]: Extraction[T,T] = IdentityExtraction[T]()
 
 
 

@@ -37,6 +37,8 @@ object Main extends App {
     GET / "json"      to JsonMessage("Hello, World").ok
   )
 
+  //val route = Parameter("foo", ![Int]) + Parameter("bar", ![Int]) to {case (a,b) => (a + b).toString.ok}
+
   Routing.start(settings, routes)
 
 }
