@@ -9,12 +9,12 @@ object Routing {
 
   def start(settings: HttpServerSettings, routes: HttpRoute) = {
     implicit val p = new Pool
-    val built = routes.toRoute
+    //val built = routes.toRoute
     HttpServer.start(settings, implicit context => new RequestHandler[HttpRequest, HttpResponse] {
     
       def onInitialize(context: RequestHandlerContext){}
 
-      def handleRequest(request: HttpRequest): Async[HttpResponse] = built(new RequestContext(request)) match {
+      def handleRequest(request: HttpRequest): Async[HttpResponse] = routes(new RequestContext(request)) match {
         case Right(f) => f.resolve(context)
         case Left(reason) => Async.successful(HttpResponse(reason.reason.code, Body.plain(reason.message)))
       }

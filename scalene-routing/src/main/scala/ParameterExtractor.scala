@@ -39,11 +39,11 @@ object ParameterExtractor {
     }
   }
 
-  def literal[T : Formatter](lit :T) = new ParameterExtractor[HNil] {
+  def literal[T : Formatter](lit :T) = new ParameterExtractor[Unit] {
     val inner = single[T]
-    def extract(request: RequestContext, key: String): Result[HNil] = inner
+    def extract(request: RequestContext, key: String): Result[Unit] = inner
       .extract(request, key) match {
-        case Right(res) => if (res == lit) Right(HNil) else Left(ParseError.badRequest("bad value"))
+        case Right(res) => if (res == lit) Right(()) else Left(ParseError.badRequest("bad value"))
         case Left(o) => Left(o)
       }
   }
@@ -60,8 +60,8 @@ trait ParameterExtractorProvider[X] {
 object ParameterExtractorProvider {
 
   implicit def realliteralProvider[T](implicit formatter: Formatter[T]) = new ParameterExtractorProvider[T] {
-    type Out = HNil
-    def provide(extraction: T): ParameterExtractor[HNil] = ParameterExtractor.literal[T](extraction)
+    type Out = Unit
+    def provide(extraction: T): ParameterExtractor[Unit] = ParameterExtractor.literal[T](extraction)
   }
 
   implicit def extractProvider[T](implicit extractor: ParameterExtractor[T]) = new ParameterExtractorProvider[Extraction[T, T]] {

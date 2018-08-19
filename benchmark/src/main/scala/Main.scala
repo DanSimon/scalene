@@ -6,6 +6,7 @@ import scala.concurrent.duration._
 import scalene._
 import scalene.http._
 import scalene.routing._
+import scalene.httprouting._
 import Body.BodyLifting
 
 object Main extends App {

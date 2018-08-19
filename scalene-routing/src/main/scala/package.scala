@@ -12,7 +12,6 @@ import ops.function._
 
 package object routing {
 
-  type Raw = String //convert to databuffer eventually
 
   type Result[T] = Either[ParseError, T]
 

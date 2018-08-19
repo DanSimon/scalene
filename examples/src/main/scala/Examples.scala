@@ -1,6 +1,7 @@
 package examples
 
 import scalene.routing._
+import scalene.httprouting._
 
 object Main extends App {
 

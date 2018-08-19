@@ -8,9 +8,9 @@ import ops.hlist._
 import syntax.std.function._
 import ops.function._
 
-case class Method(method: HttpMethod) extends Parser[RequestContext, HNil] {
+case class Method(method: HttpMethod) extends Parser[RequestContext, Unit] {
   def parse(req: RequestContext) = if (req.request.method == method) {
-    Right(HNil)
+    Right(())
   } else {
     Left(ParseError.notFound(s"Expected method $method, got ${req.request.method}"))
   }

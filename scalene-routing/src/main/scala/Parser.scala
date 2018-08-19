@@ -48,22 +48,22 @@ trait Parser[I, O] {
 
 }
 
-trait Formatter[T] extends Parser[Raw,T]{
-  def format(data: Raw): Result[T]
+trait Formatter[T] extends Parser[String,T]{
+  def format(data: String): Result[T]
 
-  def parse(input: Raw): Result[T] = format(input)
+  def parse(input: String): Result[T] = format(input)
 }
 
 object StringF extends Formatter[String] {
-  def format(data: Raw) = Right(data)
+  def format(data: String) = Right(data)
 }
 object IntF extends Formatter[Int] {
-  def format(data: Raw) = try { Right(data.toInt) } catch {
+  def format(data: String) = try { Right(data.toInt) } catch {
     case e : Throwable => Left(ParseError(ErrorReason.BadRequest, () => e.getMessage))
   }
 }
 object BooleanF extends Formatter[Boolean] {
-  def format(data: Raw) = 
+  def format(data: String) = 
     if (data.toLowerCase == "true") Right(true) 
     else if (data.toLowerCase == "false") Right(false)
     else Left(ParseError(ErrorReason.BadRequest, () => s"expected true/false, got '${data}'"))

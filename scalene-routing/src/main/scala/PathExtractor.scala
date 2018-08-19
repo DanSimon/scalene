@@ -5,12 +5,7 @@ import http.{Method => HttpMethod, _}
 import scala.annotation.implicitNotFound
 import java.util.Arrays
 
-import shapeless.{:: => :|:, _}
-import ops.hlist._
-import syntax.std.function._
-import ops.function._
-
-case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[RequestContext, HNil] {
+case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[RequestContext, Unit] {
   val pieces = prefixPieces.flatMap{_.split("/")}.filter{_ != ""}
   val prefix = "/" + pieces.mkString("/")
   
@@ -18,11 +13,11 @@ case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[Request
 
   def add(segment: String) = copy(prefixPieces = this.prefixPieces :+ segment)
 
-  def parse(ctx: RequestContext): Result[HNil] = ???
+  def parse(ctx: RequestContext): Result[Unit] = ???
 
 }
 
-class ExtractionSegmentParser[T](formatter: Parser[Raw,T]) extends Parser[RequestContext, T] {
+class ExtractionSegmentParser[T](formatter: Parser[String,T]) extends Parser[RequestContext, T] {
   def parse(components: RequestContext): Result[T] = if (components.hasNext) {
     formatter.parse(components.next).left.map{e => e.copy(reason = ErrorReason.NotFound)}
   } else {
@@ -30,10 +25,10 @@ class ExtractionSegmentParser[T](formatter: Parser[Raw,T]) extends Parser[Reques
   }
 }
 
-case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extends Parser[RequestContext, HNil] {
+case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extends Parser[RequestContext, Unit] {
   val bytes = s"${method.name.toUpperCase} ${prefix.prefix}".getBytes
-  val ok = Right(HNil)
-  def parse(req: RequestContext): Result[HNil] = {
+  val ok = Right(())
+  def parse(req: RequestContext): Result[Unit] = {
     if (Arrays.equals(req.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)) {
       req.pathIterator.advance(prefix.size)
       ok
@@ -52,12 +47,12 @@ object AsPathParser {
 
   type Aux[A,B] = AsPathParser[A]{type Out = B}
 
-  implicit def LiteralParser: AsPathParser[String] = new AsPathParser[String] {
-    type Out = HNil
+  implicit def LiteralParser = new AsPathParser[String] {
+    type Out = Unit
     def apply(in: String) = ConstantPrefixPath(in :: Nil)
   }
 
-  implicit def extractionParser[A,B](implicit formatter: Parser[Raw, A]) = new AsPathParser[Extraction[A,B]] {
+  implicit def extractionParser[A,B](implicit formatter: Parser[String, A]) = new AsPathParser[Extraction[A,B]] {
     type Out = B
     def apply(in: Extraction[A,B]) = in.extraction(new ExtractionSegmentParser(formatter))
   }
@@ -69,7 +64,8 @@ object AsPathParser {
 
   
 
-  implicit val p = identity[HNil, ExactMatchPath]
+  implicit val p = identity[Unit, ExactMatchPath]
+  implicit val q = identity[Unit, Method]
 
 }
 
@@ -84,7 +80,7 @@ trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse]
     def apply(a: A, b: B): Out = comb(asA(a), asB(b))
   }
 
-  implicit def extendRouteBuilder[L <: HList, A, AOut](implicit
+  implicit def extendRouteBuilder[L, A, AOut](implicit
     asA: AsPathParser.Aux[A, AOut],
     comb: RouteBuilderCombiner[RouteBuilder[L], Parser[RequestContext, AOut]]
   ) = new RouteBuilderCombiner[RouteBuilder[L], A] {
