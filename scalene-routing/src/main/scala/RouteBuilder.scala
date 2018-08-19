@@ -2,7 +2,7 @@ package scalene.routing
 
 import scalene.{Async, defer, Deferred}
 
-trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOps[I,FinalOut] => 
+trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer[I,FinalOut] => 
 
   /*
    * A RouteExecutor represents a fully constructed route parser.  It handles the actual
@@ -52,8 +52,6 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOps[I,FinalO
       def apply(p: P[I,O]): RouteBuilder[O] = RouteBuilder.cons(RouteBuilder.RNil, as(p))
     }
 
-    type Aux[O, P[_,_], L] = AsRouteBuilder[O, P]{ type FixedOut = L }
-
   }
 
 
@@ -74,54 +72,6 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOps[I,FinalO
 
     def shallowClone: RouteBuilder[L]
 
-    def subroutes(subs: (RouteBuilder[L] => Route[I,FinalOut])*): Route[I,FinalOut] = {
-      val slist = buildRouteExecutor
-      val subroutes: Array[Route[I,FinalOut]] = subs.map{sub => sub(shallowClone)}.toArray
-      val notFoundError: RouteResult[FinalOut] = Left(ParseError.notFound("no route"))
-      new Route[I,FinalOut] {
-        val vsetSize = subroutes.map{_.vsetSize}.max + size
-
-        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) flatMap {unit =>
-          //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
-          val nextFilters = collectedFilters ++ slist.filters
-          subroutes.foldLeft[RouteResult[FinalOut]](notFoundError){
-            case (success @ Right(res), next) => success
-            case (Left(err), next)  => err.reason match {
-              case ErrorReason.NotFound   => next.execute(input.cclone, nextFilters, values)
-              case ErrorReason.BadRequest => Left(err)
-            }
-          }
-        }
-      }
-
-    }
-
-    def to(completion: L => Deferred[FinalOut]): Route[I,FinalOut] = {
-      val slist = buildRouteExecutor
-      new Route[I,FinalOut] {
-        final val vsetSize = slist.size
-
-        final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) match {
-          case Right(_) => Right (
-            if (collectedFilters.isEmpty && slist.filters.isEmpty) {
-              completion(build(values))
-            } else {
-              slist.executeFilters(input, collectedFilters, values) flatMap { _ => 
-                completion(build(values))
-              }
-            }
-          )
-          case Left(err) => Left(err)
-        }
-      }
-    }
-    def as(const: FinalOut): Route[I,FinalOut] = {
-      to(_ => Deferred.successful(const))
-    }
-
-    def as(const: Deferred[FinalOut]): Route[I,FinalOut] = {
-      to(_ => const)
-    }
   }
   object RouteBuilder {
 

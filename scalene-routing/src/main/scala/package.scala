@@ -37,7 +37,7 @@ package object routing {
 
 
 package object httprouting 
-extends routing.RouteBuilderOps[routing.RequestContext, HttpResponse] 
+extends routing.RouteBuilderOpsContainer[routing.RequestContext, HttpResponse] 
 with routing.RouteBuilding[routing.RequestContext, HttpResponse]
 with routing.PathParsing {
 

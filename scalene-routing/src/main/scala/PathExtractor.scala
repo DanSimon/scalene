@@ -69,7 +69,7 @@ object AsPathParser {
 
 }
 
-trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOps[RequestContext, HttpResponse] =>
+trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
 
   implicit def combineTwoThings[A, B, AOut, BOut](implicit 
     asA: AsPathParser.Aux[A, AOut],
@@ -91,7 +91,7 @@ trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse]
 }
 
 //mixed into package object
-trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOps[RequestContext, HttpResponse] =>
+trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
 
   implicit class PathCombine[A](val a: A) {
     def /[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)

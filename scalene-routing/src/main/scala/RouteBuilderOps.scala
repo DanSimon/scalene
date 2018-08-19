@@ -4,15 +4,8 @@ import scala.annotation.implicitNotFound
 import scala.language.higherKinds
 
 import scalene._
-import scalene.http.{Method => HttpMethod, _}
-import shapeless.{:: => :|:, _}
-import ops.hlist._
-import ops.nat.ToInt
-import syntax.std.function._
-import ops.function._
 
-//mixed in to routing package
-trait RouteBuilderOps[I <: Clonable[I], FinalOut] { self: RouteBuilding[I,FinalOut] => 
+trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding[I, FinalOut] =>
 
   /**
    * Typeclass to combine things into RouteBuilders.  Those things can either be
@@ -57,86 +50,67 @@ trait RouteBuilderOps[I <: Clonable[I], FinalOut] { self: RouteBuilding[I,FinalO
 
   }
 
-  object RouteBuilderCombiner extends LowPriorityRouteBuilderCombiners {
-
-  }
-
-  @implicitNotFound("Result must be a ${Out}, Deferred[${Out}], or have an implicit AsResponse[${T}, ${Out}] in scope")
-  trait AsResponse[T, Out] {
-    def apply(t: T): Deferred[Out]
-  }
-
-  trait LPAsResponse {
-
-    implicit def liftIdentity[T] = new AsResponse[T,T] {
-
-      @inline
-      def apply(t: T) = Deferred.successful(t)
-    }
-
-  }
-
-  object AsResponse extends LPAsResponse{
-
-
-    implicit def identity[T] = new AsResponse[Deferred[T], T] {
-
-      @inline
-      def apply(d: Deferred[T]) = d
-    }
-  }
-
+  object RouteBuilderCombiner extends LowPriorityRouteBuilderCombiners 
 
   implicit class CombineTo[A](val a: A) {
     def +[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
   }
 
-}
+  implicit class AsRouteBuilderOps[O, P[_,_]](p: P[I,O])(implicit as: AsRouteBuilder[O, P])
+  extends RouteBuilderOps[O](as(p))
 
-object Tests {
-  import httprouting._
+  implicit class RouteBuilderOps[L](builder: RouteBuilder[L]) {
 
-  //val a = Parameter("a", ![Int]) + Parameter("b", ![Int]) to { case (a,b) => Body.plain((a * b).toString).ok }
-  //
+    def subroutes(subs: (RouteBuilder[L] => Route[I,FinalOut])*): Route[I,FinalOut] = {
+      val slist = builder.buildRouteExecutor
+      val subroutes: Array[Route[I,FinalOut]] = subs.map{sub => sub(builder.shallowClone)}.toArray
+      val notFoundError: RouteResult[FinalOut] = Left(ParseError.notFound("no route"))
+      new Route[I,FinalOut] {
+        val vsetSize = subroutes.map{_.vsetSize}.max + builder.size
 
-  trait Z[B] {
-
-    case class Foo[A](a: A) {
-
-      def to(f: A => B): B = f(a)
-
-      //def to(b: B): B = b
+        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) flatMap {unit =>
+          //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
+          val nextFilters = collectedFilters ++ slist.filters
+          subroutes.foldLeft[RouteResult[FinalOut]](notFoundError){
+            case (success @ Right(res), next) => success
+            case (Left(err), next)  => err.reason match {
+              case ErrorReason.NotFound   => next.execute(input.cclone, nextFilters, values)
+              case ErrorReason.BadRequest => Left(err)
+            }
+          }
+        }
+      }
 
     }
 
+    def to(completion: L => Deferred[FinalOut]): Route[I,FinalOut] = {
+      val slist = builder.buildRouteExecutor
+      new Route[I,FinalOut] {
+        final val vsetSize = slist.size
+
+        final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) match {
+          case Right(_) => Right (
+            if (collectedFilters.isEmpty && slist.filters.isEmpty) {
+              completion(builder.build(values))
+            } else {
+              slist.executeFilters(input, collectedFilters, values) flatMap { _ => 
+                completion(builder.build(values))
+              }
+            }
+          )
+          case Left(err) => Left(err)
+        }
+      }
+    }
+    def as(const: FinalOut): Route[I,FinalOut] = {
+      to(_ => Deferred.successful(const))
+    }
+
+    def as(const: Deferred[FinalOut]): Route[I,FinalOut] = {
+      to(_ => const)
+    }
 
   }
-  object ZS extends Z[String]
-  import ZS._
-  //Foo((3, 4)) to {case (a,b) => (a + b).toString}
-  //Foo((4, "est")) to "hello"
-
-  case class Bar[A, B](a: A) {
-
-    def to(f: A => B): B = f(a)
-
-    def to(b: B): B = b
-
-  }
-  //Bar[(Int, Int), String]((3, 4)) to {case Tuple2(a,b) => (a + b).toString}
-
-  //Bar[Int :|: Int :|: HNil, String](3 :: 4 :: HNil) to {case a :|: b :|: HNil => (a + b).toString}
-
-  case class Concrete(i: (Int, Int)) {
-
-    def to(f: ((Int, Int)) => String): String = f(i)
-
-    def to(s: String): String = s
-
-  }
-
-  //Concrete((3, 4)) to {case (a,b) => (a + b).toString}
-
 
 }
 
