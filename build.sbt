@@ -2,7 +2,7 @@
 val baseSettings = Seq(
   organization := "io.dsimon",
   addCompilerPlugin("io.tryp" % "splain" % "0.3.1" cross CrossVersion.patch),
-  scalaVersion := "2.12.4",
+  scalaVersion := "2.12.6",
   libraryDependencies ++= Seq(
     "ch.qos.logback"               %  "logback-classic"      % "1.2.2",
     "org.slf4j"              %  "slf4j-api"                   % "1.7.6",

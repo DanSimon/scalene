@@ -97,6 +97,46 @@ object Tests {
   import httprouting._
 
   //val a = Parameter("a", ![Int]) + Parameter("b", ![Int]) to { case (a,b) => Body.plain((a * b).toString).ok }
+  //
+
+  trait Z[B] {
+
+    case class Foo[A](a: A) {
+
+      def to(f: A => B): B = f(a)
+
+      //def to(b: B): B = b
+
+    }
+
+
+  }
+  object ZS extends Z[String]
+  import ZS._
+  //Foo((3, 4)) to {case (a,b) => (a + b).toString}
+  //Foo((4, "est")) to "hello"
+
+  case class Bar[A, B](a: A) {
+
+    def to(f: A => B): B = f(a)
+
+    def to(b: B): B = b
+
+  }
+  //Bar[(Int, Int), String]((3, 4)) to {case Tuple2(a,b) => (a + b).toString}
+
+  //Bar[Int :|: Int :|: HNil, String](3 :: 4 :: HNil) to {case a :|: b :|: HNil => (a + b).toString}
+
+  case class Concrete(i: (Int, Int)) {
+
+    def to(f: ((Int, Int)) => String): String = f(i)
+
+    def to(s: String): String = s
+
+  }
+
+  //Concrete((3, 4)) to {case (a,b) => (a + b).toString}
+
 
 }
 

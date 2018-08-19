@@ -96,7 +96,7 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOps[I,FinalO
 
     }
 
-    def to[T](completion: L => T)(implicit as: AsResponse[T, FinalOut]): Route[I,FinalOut] = {
+    def to(completion: L => Deferred[FinalOut]): Route[I,FinalOut] = {
       val slist = buildRouteExecutor
       new Route[I,FinalOut] {
         final val vsetSize = slist.size
@@ -104,10 +104,10 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOps[I,FinalO
         final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) match {
           case Right(_) => Right (
             if (collectedFilters.isEmpty && slist.filters.isEmpty) {
-              as(completion(build(values)))
+              completion(build(values))
             } else {
               slist.executeFilters(input, collectedFilters, values) flatMap { _ => 
-                as(completion(build(values)))
+                completion(build(values))
               }
             }
           )
@@ -115,11 +115,11 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOps[I,FinalO
         }
       }
     }
-    def to(const: FinalOut): Route[I,FinalOut] = {
+    def as(const: FinalOut): Route[I,FinalOut] = {
       to(_ => Deferred.successful(const))
     }
 
-    def to(const: Deferred[FinalOut]): Route[I,FinalOut] = {
+    def as(const: Deferred[FinalOut]): Route[I,FinalOut] = {
       to(_ => const)
     }
   }

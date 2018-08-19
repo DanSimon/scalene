@@ -34,8 +34,8 @@ object Main extends App {
   val plainBody = Body.plain("Hello, World")
 
   val routes = Routes(
-    GET / "plaintext" to plainBody.ok,
-    GET / "json"      to JsonMessage("Hello, World").ok
+    GET / "plaintext" as plainBody.ok,
+    GET / "json"      as JsonMessage("Hello, World").ok
   )
 
   //val route = Parameter("foo", ![Int]) + Parameter("bar", ![Int]) to {case (a,b) => (a + b).toString.ok}
