@@ -63,20 +63,14 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
 
     def subroutes(subs: (RouteBuilder[L] => Route[I,FinalOut])*): Route[I,FinalOut] = {
       val slist = builder.buildRouteExecutor
-      val subroutes: Array[Route[I,FinalOut]] = subs.map{sub => sub(builder.shallowClone)}.toArray
-      val notFoundError: RouteResult[FinalOut] = Left(ParseError.notFound("no route"))
+      val subroutes: Route[I,FinalOut] = Routes(subs.map{sub => sub(builder.shallowClone)}.toArray : _*)
       new Route[I,FinalOut] {
-        val vsetSize = subroutes.map{_.vsetSize}.max + builder.size
+        val vsetSize = subroutes.vsetSize + builder.size
 
-        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) flatMap {unit =>
-          //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
-          val nextFilters = collectedFilters ++ slist.filters
-          subroutes.foldLeft[RouteResult[FinalOut]](notFoundError){
-            case (success @ Right(res), next) => success
-            case (Left(err), next)  => err.reason match {
-              case ErrorReason.NotFound   => next.execute(input.cclone, nextFilters, values)
-              case ErrorReason.BadRequest => Left(err)
-            }
+        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = {
+          slist.executeParsers(input, values) flatMap {unit =>
+            val nextFilters = collectedFilters ++ slist.filters
+            subroutes.execute(input, nextFilters, values)
           }
         }
       }

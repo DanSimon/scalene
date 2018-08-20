@@ -125,8 +125,42 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
 
   object Routes {
 
-    def apply(routes: Route[I, FinalOut]*): Route[I, FinalOut] = {
-      RouteBuilder.RNil.subroutes(routes.map{route => (n: RouteBuilder[Unit]) => route}: _*)
+    def apply(_routes: Route[I, FinalOut]*): Route[I, FinalOut] = {
+      //RouteBuilder.RNil.subroutes(routes.map{route => (n: RouteBuilder[Unit]) => route}: _*)
+      val notFoundError: RouteResult[FinalOut] = Left(ParseError.notFound("no route"))
+      val routes = _routes.toArray
+      new Route[I,FinalOut] {
+        val vsetSize = routes.map{_.vsetSize}.max
+
+        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = {
+          //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
+          var res = notFoundError
+          var i = 0
+          var nextInput = input
+          while (i < routes.length) {
+            val next = routes(i).execute(nextInput, collectedFilters, values)
+            next match {
+              case Left(err) => err.reason match {
+                case ErrorReason.NotFound   => {
+                  nextInput = input.cclone
+                  i += 1
+                }
+                case ErrorReason.BadRequest => {
+                  res = Left(err)
+                  i += routes.length
+                }
+              }
+              case success => {
+                res = success
+                i += routes.length
+              }
+            }
+          }
+          res
+        }
+
+      }
+
     }
 
   }
