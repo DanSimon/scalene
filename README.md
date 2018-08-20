@@ -21,7 +21,9 @@ manipulate data from requests in a fluid and typesafe way.
 
 ```scala
 
-val route = GET / "foo" / ![Int] / ![String] to {case i :: s :: HNil => s"Got an int $i and a string $s".ok}
+val route = GET / "foo" / ![Int] / ![String] to {case (i,s) =>
+  s"Got an int $i and a string $s".ok
+}
 //>curl localhost/foo/3/hello
 //(200 OK) Got an int 3 and a string hello
 //
@@ -31,10 +33,10 @@ val route = GET / "foo" / ![Int] / ![String] to {case i :: s :: HNil => s"Got an
 case class Foo(i: Int, s: String)
 
 val route2 = "foo"  subroutes { base =>
-  base + GET / ![Int] to {case i :: HNil => 
+  base + GET / ![Int] to {id => 
     foodb.get(id).map{f => s"got $f".ok}
   },
-  base + PUT / (![Int].filter{_ > 0} / ![String] >> Foo) to {case foo :: HNil =>
+  base + PUT / (![Int].filter{_ > 0} / ![String] >> Foo) to {foo =>
     foodb.create(foo).map{f => s"created $f".ok}
   }
 }
@@ -100,9 +102,9 @@ running Windows 10 with WSL.
 
 framework| requests/second
 --- | ---
-Scalene 741,068
-Rapidoid  595,252
-Colossus  357,922
+Scalene | 741,068
+Rapidoid | 595,252
+Colossus | 357,922
 
 When allowing the number of I/O workers to be default (most are 4, some are 8),
 Scalene is basically on-par with Rapidoid, although I have less confidence in
