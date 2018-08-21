@@ -39,17 +39,16 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
   /**
    * This typeclass is used with AsCellComponent to turn a parser or a filter into a RouteBuilder 
    */
-  trait AsRouteBuilder[O, P[_,_]] {
-    def apply(p: P[I,O]): RouteBuilder[O]
+  trait AsRouteBuilder[O, P] {
+    def apply(p: P): RouteBuilder[O]
   }
 
   object AsRouteBuilder {
 
     implicit def liftAsCellComponent[O, P[_,_]](implicit 
-      as: AsCellComponent[P],
-      fuse: Fuse.Aux[Unit, O, O]
-    ) = new AsRouteBuilder[O, P] {
-      def apply(p: P[I,O]): RouteBuilder[O] = RouteBuilder.cons(RouteBuilder.RNil, as(p))
+      as: AsCellComponent[P]
+    ) = new AsRouteBuilder[O, P[I,O]] {
+      def apply(p: P[I,O]): RouteBuilder[O] = RouteBuilder.one(as(p))
     }
 
   }
@@ -84,6 +83,8 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
       def shallowClone: RouteBuilder[Unit] = this
     }
 
+    def one[L](com: CellComponent[I,L]) = cons[L, Unit](RNil, com)(Fuse.uFusev)
+
     def cons[O, L](prev : RouteBuilder[L], next: CellComponent[I,O])(implicit fuse: Fuse[L, O]): RouteBuilder[fuse.Out] = new RouteBuilder[fuse.Out] {
 
       val size = prev.size + 1
@@ -109,17 +110,15 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
 
     }
 
-    /*
-    def mapped[O, L <: HList](nested: RouteBuilder[L], map: L => O)(implicit f: Fuse[HNil, O]): RouteBuilder[f.Out] = new RouteBuilder[f.Out] {
+    def mapped[T, U](nested: RouteBuilder[T], map: T => U): RouteBuilder[U] = new RouteBuilder[U] {
 
       val size = nested.size 
       def buildRouteExecutor = nested.buildRouteExecutor
 
-      def build(values: VSet): f.Out = f.fuse(HNil, map(nested.build(values)))
+      def build(values: VSet) = map(nested.build(values))
 
       def shallowClone = mapped(nested.shallowClone, map) //is this right?!?!?!
     }
-    */
   }
 
 

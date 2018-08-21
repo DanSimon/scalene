@@ -23,16 +23,16 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
      * Combine two things that can become cell components, which would be either
      * a parser or a filter
      */
-    implicit def comCom[A, B , CA[_,_] , CB[_,_], O, FOut](
+    implicit def comCom[A, B , CA[_,_] , CB[_,_], FOut](
       implicit 
-      nilFuse: Fuse.Aux[Unit, A, O],
-      fuse: Fuse.Aux[O,B, FOut],
+      fuse: Fuse.Aux[A,B, FOut],
       asA: AsCellComponent[CA],
       asB: AsCellComponent[CB]
     ) = new RouteBuilderCombiner[CA[I,A], CB[I,B]] {
       type Out = RouteBuilder[FOut]
       def apply(a: CA[I,A], b: CB[I,B]): RouteBuilder[FOut] = {
-        val f: RouteBuilder[O] = RouteBuilder.cons(RouteBuilder.RNil, asA(a))
+        val x: CellComponent[I,A] = asA(a)
+        val f: RouteBuilder[A] = RouteBuilder.one(x)
         RouteBuilder.cons(f, asB(b))
       }
     }
@@ -56,7 +56,7 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
     def +[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
   }
 
-  implicit class AsRouteBuilderOps[O, P[_,_]](p: P[I,O])(implicit as: AsRouteBuilder[O, P])
+  implicit class AsRouteBuilderOps[O, P](p: P)(implicit as: AsRouteBuilder[O, P])
   extends RouteBuilderOps[O](as(p))
 
   implicit class RouteBuilderOps[L](builder: RouteBuilder[L]) {
@@ -77,7 +77,7 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
 
     }
 
-    def to(completion: L => Deferred[FinalOut]): Route[I,FinalOut] = {
+    def to[T](completion: L => T)(implicit as: AsResponse[T, FinalOut]): Route[I,FinalOut] = {
       val slist = builder.buildRouteExecutor
       new Route[I,FinalOut] {
         final val vsetSize = slist.size
@@ -85,10 +85,10 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
         final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) match {
           case Right(_) => Right (
             if (collectedFilters.isEmpty && slist.filters.isEmpty) {
-              completion(builder.build(values))
+              as(completion(builder.build(values)))
             } else {
               slist.executeFilters(input, collectedFilters, values) flatMap { _ => 
-                completion(builder.build(values))
+                as(completion(builder.build(values)))
               }
             }
           )
@@ -103,6 +103,8 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
     def as(const: Deferred[FinalOut]): Route[I,FinalOut] = {
       to(_ => const)
     }
+
+    def map[U](f: L => U): RouteBuilder[U] = RouteBuilder.mapped[L, U](builder, f)
 
   }
 

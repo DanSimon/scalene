@@ -22,13 +22,13 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
 
   val settings = HttpServerSettings(
     serverName = "test",
+    maxIdleTime = 10.seconds,
     server = ServerSettings(
       port = 9876,
       addresses = Nil,
       maxConnections = 4096,
       tcpBacklogSize = None,
-      numWorkers = Some(1),
-      maxIdleTime = 10.seconds
+      numWorkers = Some(1)
     )
   )
 

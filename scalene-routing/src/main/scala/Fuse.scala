@@ -39,5 +39,15 @@ object Fuse extends LowPriorityFuse {
     def fuse(a : A, b : B): Out = p(a,b)
   }
 
+  implicit def uFusev[T] = new Fuse[Unit, T] {
+    type Out = T
+    def fuse(a: Unit, b: T) = b
+  }
+
+  implicit def uFuseu = new Fuse[Unit, Unit] {
+    type Out = Unit
+    def fuse(a: Unit, b: Unit) = ()
+  }
+
 }
 

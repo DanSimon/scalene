@@ -71,7 +71,7 @@ object AsPathParser {
 
 trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
 
-  implicit def combineTwoThings[A, B, AOut, BOut](implicit 
+  implicit def pathCombineTwoThings[A, B, AOut, BOut](implicit 
     asA: AsPathParser.Aux[A, AOut],
     asB: AsPathParser.Aux[B, BOut],
     comb: RouteBuilderCombiner[Parser[RequestContext, AOut], Parser[RequestContext, BOut]]
@@ -80,7 +80,7 @@ trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse]
     def apply(a: A, b: B): Out = comb(asA(a), asB(b))
   }
 
-  implicit def extendRouteBuilder[L, A, AOut](implicit
+  implicit def pathExtendRouteBuilder[L, A, AOut](implicit
     asA: AsPathParser.Aux[A, AOut],
     comb: RouteBuilderCombiner[RouteBuilder[L], Parser[RequestContext, AOut]]
   ) = new RouteBuilderCombiner[RouteBuilder[L], A] {
@@ -92,6 +92,12 @@ trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse]
 
 //mixed into package object
 trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
+
+  //lift strings and extractions to route builders so you can do "foo" to {...
+  //this isn't in RouteBuilderOpsContainer so we can keep that as generic as possible
+  implicit val stringAsBuilder = new AsRouteBuilder[Unit, String] {
+    def apply(s: String): RouteBuilder[Unit] = RouteBuilder.one(CellParser(new ConstantPrefixPath(s :: Nil)))
+  }
 
   implicit class PathCombine[A](val a: A) {
     def /[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
