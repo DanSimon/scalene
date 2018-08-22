@@ -38,27 +38,23 @@ case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extend
   }
 }
 
-trait AsPathParser[T] {
-  type Out
+trait AsPathParser[T, Out] {
   def apply(in : T): Parser[RequestContext, Out]
 }
 
 object AsPathParser {
 
-  type Aux[A,B] = AsPathParser[A]{type Out = B}
+  type Aux[A,B] = AsPathParser[A,B]
 
-  implicit def LiteralParser = new AsPathParser[String] {
-    type Out = Unit
+  implicit def LiteralParser = new AsPathParser[String, Unit] {
     def apply(in: String) = ConstantPrefixPath(in :: Nil)
   }
 
-  implicit def extractionParser[A,B](implicit formatter: Parser[String, A]) = new AsPathParser[Extraction[A,B]] {
-    type Out = B
+  implicit def extractionParser[A,B](implicit formatter: Parser[String, A]) = new AsPathParser[Extraction[A,B], B] {
     def apply(in: Extraction[A,B]) = in.extraction(new ExtractionSegmentParser(formatter))
   }
 
-  implicit def identity[T, P <: Parser[RequestContext, T]] = new AsPathParser[P] {
-    type Out = T
+  implicit def identity[T, P <: Parser[RequestContext, T]] = new AsPathParser[P, T] {
     def apply(p: P) = p
   }
 
@@ -74,18 +70,18 @@ trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse]
   implicit def pathCombineTwoThings[A, B, AOut, BOut](implicit 
     asA: AsPathParser.Aux[A, AOut],
     asB: AsPathParser.Aux[B, BOut],
-    comb: RouteBuilderCombiner[Parser[RequestContext, AOut], Parser[RequestContext, BOut]]
+    fuse: Fuse[AOut,BOut]
   ) = new RouteBuilderCombiner[A, B] {
-    type Out = comb.Out
-    def apply(a: A, b: B): Out = comb(asA(a), asB(b))
+    type Out = RouteBuilder[fuse.Out]
+    def apply(a: A, b: B): Out = RouteBuilder.cons(RouteBuilder.one(CellParser(asA(a))), CellParser(asB(b)))
   }
 
   implicit def pathExtendRouteBuilder[L, A, AOut](implicit
     asA: AsPathParser.Aux[A, AOut],
-    comb: RouteBuilderCombiner[RouteBuilder[L], Parser[RequestContext, AOut]]
+    fuse: Fuse[L, AOut]
   ) = new RouteBuilderCombiner[RouteBuilder[L], A] {
-    type Out = comb.Out
-    def apply(builder: RouteBuilder[L], a: A): Out = comb(builder, asA(a))
+    type Out = RouteBuilder[fuse.Out]
+    def apply(builder: RouteBuilder[L], a: A): Out = RouteBuilder.cons(builder, CellParser(asA(a)))
   }
 
 }
@@ -95,8 +91,18 @@ trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestCo
 
   //lift strings and extractions to route builders so you can do "foo" to {...
   //this isn't in RouteBuilderOpsContainer so we can keep that as generic as possible
-  implicit val stringAsBuilder = new AsRouteBuilder[Unit, String] {
+  implicit val stringAsBuilder = new AsRouteBuilder[String] {
+    type Out = Unit
     def apply(s: String): RouteBuilder[Unit] = RouteBuilder.one(CellParser(new ConstantPrefixPath(s :: Nil)))
+  }
+
+  implicit val methodAsBuilder = new AsRouteBuilder[Method] {
+    type Out = Unit
+    def apply(m: Method): RouteBuilder[Unit] = RouteBuilder.one(CellParser(m))
+  }
+  implicit val exactMatchBuilder = new AsRouteBuilder[ExactMatchPath] {
+    type Out = Unit
+    def apply(e: ExactMatchPath): RouteBuilder[Unit] = RouteBuilder.one(CellParser(e))
   }
 
   implicit class PathCombine[A](val a: A) {

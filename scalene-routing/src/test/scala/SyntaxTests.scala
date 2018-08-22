@@ -24,6 +24,8 @@ class CListTest extends WordSpec with MustMatchers {
       b.isInstanceOf[ExactMatchPath] must equal(true)
 
       b to {_ => stringResponse("yay")}
+
+      val c = Parameter("a" , "va") + Parameter("b", "bv") as stringResponse("hey")
     }
   }
 

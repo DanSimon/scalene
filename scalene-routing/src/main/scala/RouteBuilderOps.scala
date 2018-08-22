@@ -23,14 +23,14 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
      * Combine two things that can become cell components, which would be either
      * a parser or a filter
      */
-    implicit def comCom[A, B , CA[_,_] , CB[_,_], FOut](
+    implicit def comCom[A, B , CA , CB](
       implicit 
-      fuse: Fuse.Aux[A,B, FOut],
-      asA: AsCellComponent[CA],
-      asB: AsCellComponent[CB]
-    ) = new RouteBuilderCombiner[CA[I,A], CB[I,B]] {
-      type Out = RouteBuilder[FOut]
-      def apply(a: CA[I,A], b: CB[I,B]): RouteBuilder[FOut] = {
+      fuse: Fuse[A,B],
+      asA: AsCellComponent[I, A, CA],
+      asB: AsCellComponent[I, B, CB]
+    ) = new RouteBuilderCombiner[CA, CB] {
+      type Out = RouteBuilder[fuse.Out]
+      def apply(a: CA, b: CB): RouteBuilder[fuse.Out] = {
         val x: CellComponent[I,A] = asA(a)
         val f: RouteBuilder[A] = RouteBuilder.one(x)
         RouteBuilder.cons(f, asB(b))
@@ -40,23 +40,25 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
     /**
      * Combine a buider with a thing that can become a cell component
      */
-    implicit def builderCom[A , B , C[_,_], FOut](
+    implicit def builderCom[A , B , CB, FOut](
       implicit fuse: Fuse.Aux[A,B, FOut],
-      as: AsCellComponent[C]
-    ) = new RouteBuilderCombiner[RouteBuilder[A], C[I,B]] {
+      as: AsCellComponent[I, B, CB]
+    ) = new RouteBuilderCombiner[RouteBuilder[A], CB] {
       type Out = RouteBuilder[FOut]
-      def apply(a: RouteBuilder[A], b: C[I,B]): RouteBuilder[FOut] = RouteBuilder.cons(a, as(b))
+      def apply(a: RouteBuilder[A], b: CB): RouteBuilder[FOut] = RouteBuilder.cons(a, as(b))
     }
 
   }
 
-  object RouteBuilderCombiner extends LowPriorityRouteBuilderCombiners 
+  object RouteBuilderCombiner extends LowPriorityRouteBuilderCombiners  {
+    type Aux[A, B, O] = RouteBuilderCombiner[A,B] { type Out = O }
+  }
 
   implicit class CombineTo[A](val a: A) {
     def +[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
   }
 
-  implicit class AsRouteBuilderOps[O, P](p: P)(implicit as: AsRouteBuilder[O, P])
+  implicit class AsRouteBuilderOps[P, O](p: P)(implicit as: AsRouteBuilder.Aux[P, O])
   extends RouteBuilderOps[O](as(p))
 
   implicit class RouteBuilderOps[L](builder: RouteBuilder[L]) {

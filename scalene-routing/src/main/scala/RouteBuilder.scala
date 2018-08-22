@@ -39,16 +39,20 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
   /**
    * This typeclass is used with AsCellComponent to turn a parser or a filter into a RouteBuilder 
    */
-  trait AsRouteBuilder[O, P] {
-    def apply(p: P): RouteBuilder[O]
+  trait AsRouteBuilder[P] {
+    type Out
+    def apply(p: P): RouteBuilder[Out]
   }
 
   object AsRouteBuilder {
 
-    implicit def liftAsCellComponent[O, P[_,_]](implicit 
-      as: AsCellComponent[P]
-    ) = new AsRouteBuilder[O, P[I,O]] {
-      def apply(p: P[I,O]): RouteBuilder[O] = RouteBuilder.one(as(p))
+    type Aux[P, O] = AsRouteBuilder[P] { type Out = O }
+
+    implicit def liftAsCellComponent[O, P](implicit 
+      as: AsCellComponent[I, O, P]
+    ) = new AsRouteBuilder[P] {
+      type Out = O
+      def apply(p: P): RouteBuilder[O] = RouteBuilder.one(as(p))
     }
 
   }
