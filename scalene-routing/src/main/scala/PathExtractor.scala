@@ -105,6 +105,10 @@ trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestCo
     def apply(e: ExactMatchPath): RouteBuilder[Unit] = RouteBuilder.one(CellParser(e))
   }
 
+  implicit val methodCell = new AsCellComponent[RequestContext,Unit, Method] {
+    def apply(m: Method): CellComponent[RequestContext,Unit] = CellParser(m)
+  }
+
   implicit class PathCombine[A](val a: A) {
     def /[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
   }

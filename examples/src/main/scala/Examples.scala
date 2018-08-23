@@ -11,12 +11,15 @@ object Main extends App {
   implicit val intResponse = new AsResponse[Int, HttpResponse] {
     def apply(i: Int) = Deferred.successful(Body.plain(i.toString).ok)
   }
+  implicit val stringResponse = new AsResponse[String, HttpResponse] {
+    def apply(s: String) = Deferred.successful(Body.plain(s).ok)
+  }
 
   case class Foo(i: Int, s: String)
   val parseFooFromPath = ![Int] / ![String] map Foo.tupled
 
   val fooRoutes = "foo" subroutes {base =>
-    base + POST + parseFooFromPath to {foo => s"got a foo $foo".ok}
+    base + POST + parseFooFromPath to {foo => s"got a foo $foo"}
   }
 
   val routes = Routes(

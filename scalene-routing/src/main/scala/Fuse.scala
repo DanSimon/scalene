@@ -18,7 +18,7 @@ trait LowestPriorityFuse {
 
 }
 
-trait LowPriorityFuse extends LowestPriorityFuse {
+trait LowerPriorityFuse extends LowestPriorityFuse {
   implicit def vFuseP[A, B](implicit p: Prepend[Tuple1[A], B]) = new Fuse[A,B] { 
     type Out = p.Out
     def fuse(a : A, b : B): Out = p(Tuple1(a), b)
@@ -30,14 +30,18 @@ trait LowPriorityFuse extends LowestPriorityFuse {
 
 }
 
-object Fuse extends LowPriorityFuse {
-  
-  type Aux[A,B, O] = Fuse[A,B] { type Out = O }
+trait LowPriorityFuse extends LowerPriorityFuse {
 
   implicit def hFuseh[A , B](implicit p: Prepend[A, B]) = new Fuse[A,B] { 
     type Out = p.Out
     def fuse(a : A, b : B): Out = p(a,b)
   }
+
+}
+
+object Fuse extends LowPriorityFuse {
+  
+  type Aux[A,B, O] = Fuse[A,B] { type Out = O }
 
   implicit def uFusev[T] = new Fuse[Unit, T] {
     type Out = T

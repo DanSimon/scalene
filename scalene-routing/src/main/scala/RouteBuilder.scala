@@ -7,8 +7,7 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
   /*
    * A RouteExecutor represents a fully constructed route parser.  It handles the actual
    * execution of the routes parsers and filters, accumulating the extracted
-   * values into a VSet.  A corrosponding RouteBuilder handles properly typing the
-   * extracted values into a result HList
+   * values into a VSet.  
    */
   case class RouteExecutor(parsers: List[WrappedParser[I]], filters: List[WrappedFilter[I]]) {
     def size = parsers.size + filters.size
@@ -35,6 +34,13 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
       }
     }
   }
+
+  abstract class ConstructedRoute[O](val executor: RouteExecutor) {
+    def buildResult(values: VSet): O
+    def shallowClone: RouteBuilder[O]
+  }
+
+
 
   /**
    * This typeclass is used with AsCellComponent to turn a parser or a filter into a RouteBuilder 
@@ -67,21 +73,19 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
    */
   trait RouteBuilder[L] {
 
-    def buildRouteExecutor : RouteExecutor
-
-    def build(values: VSet): L
+    def build(offset: Int) : ConstructedRoute[L]
 
     def size: Int
-
-    def shallowClone: RouteBuilder[L]
 
   }
   object RouteBuilder {
 
     object RNil extends RouteBuilder[Unit] {
       
-      def buildRouteExecutor = RouteExecutor(Nil, Nil)
-      def build(values: VSet) = ()
+      def build(offset: Int) = new ConstructedRoute[Unit](RouteExecutor(Nil, Nil)) {
+        def buildResult(values: VSet) = ()
+        def shallowClone = RNil
+      }
 
       val size = 0
       def shallowClone: RouteBuilder[Unit] = this
@@ -92,39 +96,65 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
     def cons[O, L](prev : RouteBuilder[L], next: CellComponent[I,O])(implicit fuse: Fuse[L, O]): RouteBuilder[fuse.Out] = new RouteBuilder[fuse.Out] {
 
       val size = prev.size + 1
-      val prevList = prev.buildRouteExecutor
 
-      val (slist, cell) = next match {
-        case p @ CellParser(_) => {
-          val (wrapped, cell) = p.wrapped(size - 1)
-          (RouteExecutor(prevList.parsers :+ wrapped, prevList.filters), cell)
+      def build(offset: Int): ConstructedRoute[fuse.Out] = {
+        val prevRoute = prev.build(offset)
+        val prevEx = prevRoute.executor
+        val index = offset + size - 1
+
+        val (executor, cell) = next match {
+          case p @ CellParser(_) => {
+            val (wrapped, cell) = p.wrapped(index)
+            (RouteExecutor(prevEx.parsers :+ wrapped, prevEx.filters), cell)
+          }
+          case f @ CellFilter(_) => {
+            val (wrapped, cell) = f.wrapped(index)
+            (RouteExecutor(prevEx.parsers, prevEx.filters :+ wrapped), cell)
+          }
+          case CellPhantom(cell) => {
+            (RouteExecutor(prevEx.parsers, prevEx.filters), cell)
+          }
         }
-        case f @ CellFilter(_) => {
-          val (wrapped, cell) = f.wrapped(size - 1)
-          (RouteExecutor(prevList.parsers, prevList.filters :+ wrapped), cell)
+        new ConstructedRoute[fuse.Out](executor) {
+          def buildResult(values: VSet) = fuse.fuse(prevRoute.buildResult(values), cell.get(values))
+          def shallowClone = cons(prevRoute.shallowClone, CellPhantom(cell))
         }
-        case CellPhantom(cell) => {
-          (RouteExecutor(prevList.parsers, prevList.filters), cell)
-        }
+
       }
-      val buildRouteExecutor = slist
-      def build(values: VSet): fuse.Out = fuse.fuse(prev.build(values), cell.get(values))
 
-      def shallowClone = cons(prev.shallowClone, CellPhantom(cell))
 
     }
 
     def mapped[T, U](nested: RouteBuilder[T], map: T => U): RouteBuilder[U] = new RouteBuilder[U] {
 
       val size = nested.size 
-      def buildRouteExecutor = nested.buildRouteExecutor
+      def build(offset: Int) = {
+        val n = nested.build(offset)
+        new ConstructedRoute[U](n.executor) {
+          def buildResult(values: VSet) = map(n.buildResult(values))
+          def shallowClone = mapped(n.shallowClone, map) //is this right?!?!?!
+        }
+      }
 
-      def build(values: VSet) = map(nested.build(values))
+    }
 
-      def shallowClone = mapped(nested.shallowClone, map) //is this right?!?!?!
+    def fused[A,B](a: RouteBuilder[A], b: RouteBuilder[B])(implicit fuse: Fuse[A,B]): RouteBuilder[fuse.Out] = new RouteBuilder[fuse.Out] {
+
+      val size = a.size + b.size
+      def build(offset: Int) = {
+        val builtA = a.build(offset)
+        val builtB = b.build(offset + a.size)
+        val executor = RouteExecutor(
+          builtA.executor.parsers ++ builtB.executor.parsers,
+          builtA.executor.filters ++ builtB.executor.filters
+        )
+        new ConstructedRoute[fuse.Out](executor) {
+          def buildResult(values: VSet) = fuse.fuse(builtA.buildResult(values), builtB.buildResult(values))
+          def shallowClone = fused(builtA.shallowClone, builtB.shallowClone)
+        }
+      }
     }
   }
-
 
   object Routes {
 

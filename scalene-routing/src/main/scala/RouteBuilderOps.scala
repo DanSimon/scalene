@@ -48,6 +48,11 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
       def apply(a: RouteBuilder[A], b: CB): RouteBuilder[FOut] = RouteBuilder.cons(a, as(b))
     }
 
+    implicit def fuseRoutes[A,B](implicit fuse: Fuse[A,B]) = new RouteBuilderCombiner[RouteBuilder[A], RouteBuilder[B]] {
+      type Out = RouteBuilder[fuse.Out]
+      def apply(a: RouteBuilder[A], b: RouteBuilder[B]): RouteBuilder[fuse.Out] = RouteBuilder.fused(a,b)
+    }
+
   }
 
   object RouteBuilderCombiner extends LowPriorityRouteBuilderCombiners  {
@@ -64,14 +69,14 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
   implicit class RouteBuilderOps[L](builder: RouteBuilder[L]) {
 
     def subroutes(subs: (RouteBuilder[L] => Route[I,FinalOut])*): Route[I,FinalOut] = {
-      val slist = builder.buildRouteExecutor
-      val subroutes: Route[I,FinalOut] = Routes(subs.map{sub => sub(builder.shallowClone)}.toArray : _*)
+      val built = builder.build(0)
+      val subroutes: Route[I,FinalOut] = Routes(subs.map{sub => sub(built.shallowClone)}.toArray : _*)
       new Route[I,FinalOut] {
         val vsetSize = subroutes.vsetSize + builder.size
 
         def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = {
-          slist.executeParsers(input, values) flatMap {unit =>
-            val nextFilters = collectedFilters ++ slist.filters
+          built.executor.executeParsers(input, values) flatMap {unit =>
+            val nextFilters = collectedFilters ++ built.executor.filters
             subroutes.execute(input, nextFilters, values)
           }
         }
@@ -80,17 +85,19 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
     }
 
     def to[T](completion: L => T)(implicit as: AsResponse[T, FinalOut]): Route[I,FinalOut] = {
-      val slist = builder.buildRouteExecutor
+      val built = builder.build(0)
       new Route[I,FinalOut] {
-        final val vsetSize = slist.size
+        final val vsetSize = builder.size
 
-        final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = slist.executeParsers(input, values) match {
+        val ex = built.executor
+
+        final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = ex.executeParsers(input, values) match {
           case Right(_) => Right (
-            if (collectedFilters.isEmpty && slist.filters.isEmpty) {
-              as(completion(builder.build(values)))
+            if (collectedFilters.isEmpty && ex.filters.isEmpty) {
+              as(completion(built.buildResult(values)))
             } else {
-              slist.executeFilters(input, collectedFilters, values) flatMap { _ => 
-                as(completion(builder.build(values)))
+              ex.executeFilters(input, collectedFilters, values) flatMap { _ => 
+                as(completion(built.buildResult(values)))
               }
             }
           )
