@@ -4,6 +4,7 @@ import scalene._
 import http.{Method => HttpMethod, _}
 import scala.annotation.implicitNotFound
 import java.util.Arrays
+import scalene.corerouting._
 
 case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[RequestContext, Unit] {
   val pieces = prefixPieces.flatMap{_.split("/")}.filter{_ != ""}
@@ -65,7 +66,7 @@ object AsPathParser {
 
 }
 
-trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
+trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
 
   implicit def pathCombineTwoThings[A, B, AOut, BOut](implicit 
     asA: AsPathParser.Aux[A, AOut],
@@ -87,7 +88,7 @@ trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse]
 }
 
 //mixed into package object
-trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with routing.RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
+trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
 
   //lift strings and extractions to route builders so you can do "foo" to {...
   //this isn't in RouteBuilderOpsContainer so we can keep that as generic as possible

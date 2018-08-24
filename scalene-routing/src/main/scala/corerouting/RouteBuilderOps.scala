@@ -1,9 +1,9 @@
-package scalene.routing
+package scalene.corerouting
 
 import scala.annotation.implicitNotFound
 import scala.language.higherKinds
 
-import scalene._
+import scalene.Deferred
 
 trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding[I, FinalOut] =>
 
@@ -74,7 +74,7 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
       new Route[I,FinalOut] {
         val vsetSize = subroutes.vsetSize + builder.size
 
-        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = {
+        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = {
           built.executor.executeParsers(input, values) flatMap {unit =>
             val nextFilters = collectedFilters ++ built.executor.filters
             subroutes.execute(input, nextFilters, values)
@@ -91,7 +91,7 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
 
         val ex = built.executor
 
-        final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = ex.executeParsers(input, values) match {
+        final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = ex.executeParsers(input, values) match {
           case Right(_) => Right (
             if (collectedFilters.isEmpty && ex.filters.isEmpty) {
               as(completion(built.buildResult(values)))

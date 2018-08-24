@@ -2,11 +2,8 @@ package scalene.routing
 
 import scalene.http._
 import scala.annotation.implicitNotFound
+import scalene.corerouting._
 
-import shapeless.{:: => :|:, _}
-import ops.hlist._
-import syntax.std.function._
-import ops.function._
 
 trait HeaderExtractor[T] {
   def extract(request: HttpRequest, key: String) : Result[T]
@@ -39,11 +36,11 @@ object HeaderExtractor {
     }
   }
 
-  def literal[T : Formatter](lit :T) = new HeaderExtractor[HNil] {
+  def literal[T : Formatter](lit :T) = new HeaderExtractor[Unit] {
     val inner = single[T]
-    def extract(request: HttpRequest, key: String): Result[HNil] = inner
+    def extract(request: HttpRequest, key: String): Result[Unit] = inner
       .extract(request, key) match {
-        case Right(res) => if (res == lit) Right(HNil) else Left(ParseError.badRequest("bad value"))
+        case Right(res) => if (res == lit) Right(()) else Left(ParseError.badRequest("bad value"))
         case Left(o) => Left(o)
       }
   }
@@ -60,8 +57,8 @@ trait HeaderExtractorProvider[X] {
 object HeaderExtractorProvider {
 
   implicit def realliteralProvider[T](implicit formatter: Formatter[T]) = new HeaderExtractorProvider[T] {
-    type Out = HNil
-    def provide(extraction: T): HeaderExtractor[HNil] = HeaderExtractor.literal[T](extraction)
+    type Out = Unit
+    def provide(extraction: T): HeaderExtractor[Unit] = HeaderExtractor.literal[T](extraction)
   }
 
   //TODO: All this needs to be reworked to support mapped extractions

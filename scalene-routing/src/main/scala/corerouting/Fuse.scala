@@ -1,4 +1,4 @@
-package scalene.routing
+package scalene.corerouting
 
 import shapeless.ops.tuple._
 

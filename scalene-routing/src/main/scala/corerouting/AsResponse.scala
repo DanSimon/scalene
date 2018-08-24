@@ -1,4 +1,4 @@
-package scalene.routing
+package scalene.corerouting
 
 import scala.annotation.implicitNotFound
 import scalene.Deferred

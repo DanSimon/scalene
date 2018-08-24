@@ -1,5 +1,6 @@
-package scalene.routing
+package scalene.corerouting
 
+//FIXME : make this more generalized!!!
 import scalene.http._
 
 /**

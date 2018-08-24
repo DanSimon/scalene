@@ -3,7 +3,7 @@ package scalene.routing
 import scalene.actor._
 import scalene._
 import scalene.http._
-import scalene.httprouting._
+import scalene.corerouting._
 
 object Routing {
 

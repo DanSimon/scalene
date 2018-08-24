@@ -1,6 +1,7 @@
 package scalene.routing
 
 import scalene.http._
+import scalene.corerouting._
 
 class LazyPathIterator(getUrl: () => String, startIndex: Int = 1) extends Iterator[String] {
   private lazy val pathComponents = getUrl().split("/")

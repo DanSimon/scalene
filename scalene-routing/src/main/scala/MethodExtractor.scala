@@ -3,10 +3,7 @@ package scalene.routing
 import scalene.http.{Method => HttpMethod}
 import scala.annotation.implicitNotFound
 
-import shapeless.{:: => :|:, _}
-import ops.hlist._
-import syntax.std.function._
-import ops.function._
+import scalene.corerouting._
 
 case class Method(method: HttpMethod) extends Parser[RequestContext, Unit] {
   def parse(req: RequestContext) = if (req.request.method == method) {

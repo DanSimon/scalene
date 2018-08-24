@@ -1,8 +1,8 @@
 package scalene.routing
 
-import scalene._
-import scalene.http._
-import scalene.httprouting._
+import scalene.Deferred
+import scalene.http.{Body, HttpResponse}
+import scalene.corerouting.AsResponse
 import org.scalatest._
 
 class CListTest extends WordSpec with MustMatchers {

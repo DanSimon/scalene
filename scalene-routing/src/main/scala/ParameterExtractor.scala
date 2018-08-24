@@ -3,10 +3,7 @@ package scalene.routing
 import scalene.http._
 import scala.annotation.implicitNotFound
 
-import shapeless.{:: => :|:, _}
-import ops.hlist._
-import syntax.std.function._
-import ops.function._
+import scalene.corerouting._
 
 trait ParameterExtractor[T] {
   def extract(request: RequestContext, key: String) : Result[T]

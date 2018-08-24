@@ -1,8 +1,6 @@
-package scalene.routing
+package scalene.corerouting
 
-import scala.language.higherKinds
-
-import scalene._
+import scalene.Deferred
 
 class VSet(size: Int) {
   private val map = new Array[Any](math.max(size, 1))

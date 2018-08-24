@@ -1,4 +1,4 @@
-package scalene.routing
+package scalene.corerouting
 
 import scalene.{Async, defer, Deferred}
 
@@ -160,12 +160,12 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
 
     def apply(_routes: Route[I, FinalOut]*): Route[I, FinalOut] = {
       //RouteBuilder.RNil.subroutes(routes.map{route => (n: RouteBuilder[Unit]) => route}: _*)
-      val notFoundError: RouteResult[FinalOut] = Left(ParseError.notFound("no route"))
+      val notFoundError: Result[Deferred[FinalOut]] = Left(ParseError.notFound("no route"))
       val routes = _routes.toArray
       new Route[I,FinalOut] {
         val vsetSize = routes.map{_.vsetSize}.max
 
-        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : RouteResult[FinalOut] = {
+        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = {
           //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
           var res = notFoundError
           var i = 0

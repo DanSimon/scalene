@@ -6,7 +6,6 @@ import scala.concurrent.duration._
 import scalene._
 import scalene.http._
 import scalene.routing._
-import scalene.httprouting._
 import Body.BodyLifting
 
 object Main extends App {
@@ -31,18 +30,10 @@ object Main extends App {
     )
   )
 
-  val plainBody = Body.plain("Hello, World")
-
   val routes = Routes(
-    GET / "plaintext" as plainBody.ok,
+    GET / "plaintext" as Body.plain("Hello, World").ok,
     GET / "json"      as JsonMessage("Hello, World").ok
   )
-
-  val route = Routes(
-    GET / "plaintext" as plainBody.ok
-  )
-
-  //val route = Parameter("foo", ![Int]) + Parameter("bar", ![Int]) to {case (a,b) => (a + b).toString.ok}
 
   Routing.start(settings, routes)
 
