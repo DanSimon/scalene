@@ -28,7 +28,6 @@ class Method(val name: String) {
   val lFirst = bytes(0)
   val uFirst = name.toUpperCase.getBytes()(0)
 
-  def url(url: String): RouteBuilding2 = RouteBuilding2(this, url)
 }
 
 object Method {
@@ -167,22 +166,16 @@ object ContentType {
 
 case class Body(data: Array[Byte], contentType: Option[ContentType]) {
 
-  def ok        = HttpResponse(ResponseCode.Ok, this)
-  def error     = HttpResponse(ResponseCode.Error, this)
-  def notFound  = HttpResponse(ResponseCode.NotFound, this)
-
 }
 
 trait BodyFormatter[T] {
   def format(item: T): Array[Byte]
   def contentType: Option[ContentType]
+
+  def apply(item: T): Body = Body(format(item), contentType)
 }
 
 object Body {
-
-  implicit class BodyLifting[T](val value: T) extends AnyVal {
-    def ok(implicit formatter: BodyFormatter[T]) = Body(formatter.format(value), formatter.contentType).ok
-  }
 
   val Empty = Body(Nil.toArray, None)
 

@@ -15,6 +15,18 @@ case class ServerSettings(
   numWorkers: Option[Int]
 )
 
+object ServerSettings {
+
+  val Default = ServerSettings(
+    port = 1349,
+    addresses = Nil,
+    maxConnections = 10000,
+    tcpBacklogSize = None,
+    numWorkers = None
+  )
+
+}
+
 sealed trait ServerMessage
 
 trait ExternalServerMessage extends ServerMessage

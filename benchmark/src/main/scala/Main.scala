@@ -2,11 +2,9 @@ package scalene.benchmark
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import scala.concurrent.duration._
-import scalene._
-import scalene.http._
 import scalene.routing._
-import Body.BodyLifting
+import scalene.http.{BodyFormatter, ContentType}
+import BasicConversions._
 
 object Main extends App {
 
@@ -18,20 +16,14 @@ object Main extends App {
     val contentType = Some(ContentType.`application/json`)
   }
 
-  val settings = HttpServerSettings(
+  val settings = Settings.basic(
     serverName = "scalene",
-    maxIdleTime = 60.seconds,
-    server = ServerSettings(
-      port = 9876,
-      addresses = Nil,
-      maxConnections = 4096,
-      tcpBacklogSize = None,
-      numWorkers = Some(1),
-    )
+    port = 9876,
+    server = ServerSettings.Default.copy(numWorkers = Some(1))
   )
 
   val routes = Routes(
-    GET / "plaintext" as Body.plain("Hello, World").ok,
+    GET / "plaintext" as "Hello, World".ok,
     GET / "json"      as JsonMessage("Hello, World").ok
   )
 

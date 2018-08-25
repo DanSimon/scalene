@@ -4,7 +4,7 @@ import scalene.http.{Method => HttpMethod, _}
 import scalene.corerouting._
 
 package object routing extends RoutingSuite[RequestContext, HttpResponse]
-with PathParsing {
+with PathParsing with ResponseBuilding {
 
   type HttpRoute = Route[RequestContext, HttpResponse]
 
@@ -57,5 +57,24 @@ with PathParsing {
   //re-export some stuff from core and http
   type Settings = HttpServerSettings
   val Settings = HttpServerSettings
+
+  type Deferred[T] = scalene.Deferred[T]
+  val Deferred = scalene.Deferred
+
+  type ServerSettings = scalene.ServerSettings
+  val ServerSettings = scalene.ServerSettings
+
+  object BasicConversions {
+    trait PlainTextBody[T] extends BodyFormatter[T] {
+      def format(obj: T) = obj.toString.getBytes()
+      def contentType = Some(ContentType.`text/plain`)
+    }
+
+    implicit object StringToBody extends PlainTextBody[String] 
+    implicit object IntToBody extends PlainTextBody[Int] 
+    implicit object FloatToBody extends PlainTextBody[Float] 
+    implicit object DoubleToBody extends PlainTextBody[Double] 
+    implicit object BooleanToBody extends PlainTextBody[Boolean] 
+  }
 
 }

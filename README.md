@@ -36,7 +36,7 @@ val route2 = "foo"  subroutes { base =>
   base + GET / ![Int] to {id => 
     foodb.get(id).map{f => s"got $f".ok}
   },
-  base + PUT / (![Int].filter{_ > 0} / ![String] >> Foo) to {foo =>
+  base + PUT / (![Int].filter{_ > 0} / ![String] map Foo.tupled) to {foo =>
     foodb.create(foo).map{f => s"created $f".ok}
   }
 }
@@ -44,7 +44,6 @@ val route2 = "foo"  subroutes { base =>
 //(200 OK) created Foo(4, hello)
 //
 ```
-
 
 ## Current State 
 
@@ -66,6 +65,8 @@ Since the framework is still in its early stages and the code is in a high
 state of flux, I'd strongly recommend opening an issue detailing any changes
 you want to make before beginning your work.  I will have fairly strict
 standards about what I will merge in, so it's better we work together early on.
+
+The only real rule I'm enforcing is that no new library dependencies can be added.  
 
 ### Origins
 

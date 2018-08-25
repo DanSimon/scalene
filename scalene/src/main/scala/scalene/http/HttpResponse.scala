@@ -29,3 +29,16 @@ object HttpResponse {
   private val emptyHeaders = new LinkedList[Header]()
   def apply(code: ResponseCode, body:Body): HttpResponse = BasicHttpResponse(code, emptyHeaders, body)
 }
+
+trait ResponseBuilding {
+
+  implicit class BuildToHttpResponse[T](item: T)(implicit builder: BodyFormatter[T]) {
+
+    def withCode(code: ResponseCode) : BasicHttpResponse = BasicHttpResponse(code, new LinkedList[Header], builder(item))
+
+    def ok = withCode(ResponseCode.Ok)
+    def notFound = withCode(ResponseCode.NotFound)
+    def error = withCode(ResponseCode.Error)
+  }
+
+}

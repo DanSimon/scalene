@@ -10,10 +10,10 @@ trait AsResponse[T, Out] {
 
 trait LPAsResponse {
 
-  implicit def liftIdentity[T] = new AsResponse[T,T] {
+  implicit def liftIdentity[Out, In <: Out] = new AsResponse[In,Out] {
 
     @inline
-    def apply(t: T) = Deferred.successful(t)
+    def apply(t: In): Deferred[Out] = Deferred.successful(t)
   }
 
 }
