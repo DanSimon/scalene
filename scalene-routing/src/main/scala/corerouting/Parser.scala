@@ -5,9 +5,20 @@ import scalene.Deferred
 trait Parser[I, O] {
   def parse(input: I) : Result[O]
 
-  def map[U](f : O => U): Parser[I,U] = ???
+  def map[U](f : O => U): Parser[I,U] = {
+    val me = this
+    new Parser[I,U] {
+      def parse(input: I): Result[U] = me.parse(input).map(f)
+    }
+  }
 
-  def filter(f: O => Boolean): Parser[I,O] = ???
+
+  def filter(f: O => Boolean, failureMessage: String = "failed filter"): Parser[I,O] = {
+    val me = this
+    new Parser[I,O] {
+      def parse(input:I): Result[O] = me.parse(input).filterOrElse(f, ParseError(ErrorReason.BadRequest, () => failureMessage))
+    }
+  }
 }
 
 trait Formatter[T] extends Parser[String,T]{

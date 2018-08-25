@@ -9,12 +9,20 @@ import scalene.corerouting._
 case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[RequestContext, Unit] {
   val pieces = prefixPieces.flatMap{_.split("/")}.filter{_ != ""}
   val prefix = "/" + pieces.mkString("/")
+  val bytes = prefix.getBytes
   
   def size = pieces.size
 
   def add(segment: String) = copy(prefixPieces = this.prefixPieces :+ segment)
 
-  def parse(ctx: RequestContext): Result[Unit] = ???
+  def parse(ctx: RequestContext): Result[Unit] = {
+    if (Arrays.equals(ctx.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)) {
+      ctx.pathIterator.advance(prefix.size)
+      Right(())
+    } else {
+      Left(ParseError.notFound("Not a match"))
+    }
+  }
 
 }
 
