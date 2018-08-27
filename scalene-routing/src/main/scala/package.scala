@@ -8,6 +8,9 @@ with PathParsing with ResponseBuilding {
 
   type HttpRoute = Route[RequestContext, HttpResponse]
 
+  final type DocType = ParserDoc
+  val EmptyDoc = ParserDoc.empty
+
   //default formatters
 
   implicit val stringFormatter: Formatter[String] = StringF

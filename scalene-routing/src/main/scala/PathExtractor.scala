@@ -74,7 +74,7 @@ object AsPathParser {
 
 }
 
-trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
+trait LowPriorityPathParsing { 
 
   implicit def pathCombineTwoThings[A, B, AOut, BOut](implicit 
     asA: AsPathParser.Aux[A, AOut],
@@ -96,7 +96,7 @@ trait LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse]
 }
 
 //mixed into package object
-trait PathParsing extends LowPriorityPathParsing { self: RouteBuilding[RequestContext, HttpResponse] with RouteBuilderOpsContainer[RequestContext, HttpResponse] =>
+trait PathParsing extends LowPriorityPathParsing { 
 
   //lift strings and extractions to route builders so you can do "foo" to {...
   //this isn't in RouteBuilderOpsContainer so we can keep that as generic as possible

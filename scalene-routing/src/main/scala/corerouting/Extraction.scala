@@ -1,5 +1,6 @@
 package scalene.corerouting
 
+trait ExtractionContainer[In <: Clonable[In], Out]{ self: RoutingSuite[In, Out] =>
 
 /**
  * An extraction defines what should be extracted, but not how it is
@@ -28,4 +29,6 @@ trait Extraction[A,B] {
 
 case class IdentityExtraction[T]() extends Extraction[T, T] {
   def extraction[I](parser: Parser[I, T]) = parser
+}
+
 }

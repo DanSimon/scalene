@@ -2,7 +2,19 @@ package scalene.corerouting
 
 import scalene.{Async, defer, Deferred}
 
-trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer[I,FinalOut] => 
+trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RoutingSuite[I,FinalOut] => 
+
+trait Route[II,O] {
+  
+  def vsetSize: Int
+
+  def execute(input: II, collectedFilters: List[WrappedFilter[II]], values: VSet) : Result[Deferred[O]]
+
+  final def apply(input: II): Result[Deferred[O]] = execute(input, Nil, if (vsetSize == 0) VSet.empty else VSet(vsetSize))
+
+  def document: DocTreeNode
+
+}
 
   /*
    * A RouteExecutor represents a fully constructed route parser.  It handles the actual
@@ -38,6 +50,8 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
   abstract class ConstructedRoute[O](val executor: RouteExecutor) {
     def buildResult(values: VSet): O
     def shallowClone: RouteBuilder[O]
+
+    def document(builder: DocType): DocType
   }
 
 
@@ -85,6 +99,7 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
       def build(offset: Int) = new ConstructedRoute[Unit](RouteExecutor(Nil, Nil)) {
         def buildResult(values: VSet) = ()
         def shallowClone = RNil
+        def document(builder: DocType): DocType = builder
       }
 
       val size = 0
@@ -118,6 +133,7 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
         new ConstructedRoute[fuse.Out](executor) {
           def buildResult(values: VSet) = fuse.fuse(prevRoute.buildResult(values), cell.get(values))
           def shallowClone = cons(prevRoute.shallowClone, CellPhantom(cell))
+          def document(builder: DocType): DocType = next.document(prevRoute.document(builder))
         }
 
       }
@@ -133,6 +149,7 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
         new ConstructedRoute[U](n.executor) {
           def buildResult(values: VSet) = map(n.buildResult(values))
           def shallowClone = mapped(n.shallowClone, map) //is this right?!?!?!
+          def document(builder: DocType): DocType = n.document(builder)
         }
       }
 
@@ -151,6 +168,7 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
         new ConstructedRoute[fuse.Out](executor) {
           def buildResult(values: VSet) = fuse.fuse(builtA.buildResult(values), builtB.buildResult(values))
           def shallowClone = fused(builtA.shallowClone, builtB.shallowClone)
+          def document(builder: DocType): DocType = builtB.document(builtA.document(builder))
         }
       }
     }
@@ -164,6 +182,8 @@ trait RouteBuilding[I <: Clonable[I], FinalOut] { self: RouteBuilderOpsContainer
       val routes = _routes.toArray
       new Route[I,FinalOut] {
         val vsetSize = routes.map{_.vsetSize}.max
+
+        def document = ???
 
         def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = {
           //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)

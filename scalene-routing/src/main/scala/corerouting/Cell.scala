@@ -2,6 +2,8 @@ package scalene.corerouting
 
 import scalene.Deferred
 
+trait CellContainer[In <: Clonable[In], Out]{self: RoutingSuite[In, Out] =>
+
 class VSet(size: Int) {
   private val map = new Array[Any](math.max(size, 1))
   def set(index: Int, value: Any) {
@@ -54,12 +56,16 @@ class WrappedFilterImpl[I,O](filter: Filter[I,O], cell: Cell[O]) extends Wrapped
   }
 }
 
-sealed trait CellComponent[I, O]
+sealed trait CellComponent[I, O] {
+  def document(builder: DocType): DocType
+}
+
 case class CellParser[I, O](parser: Parser[I, O]) extends CellComponent[I,O] {
   def wrapped(index: Int) : (WrappedParser[I], Cell[O]) = {
     val cell = new Cell[O](index)
     (new WrappedParserImpl(parser, cell), cell)
   }
+  def document(builder: DocType): DocType = parser.document(builder)
 }
 
 
@@ -68,10 +74,14 @@ case class CellFilter[I,O](filter: Filter[I,O]) extends CellComponent[I,O] {
     val cell = new Cell[O](index) 
     (new WrappedFilterImpl(filter, cell), cell)
   }
+  def document(builder: DocType): DocType = ???//parser.document(builder)
 }
 
 //used when making phantom clones of QLists for dealing with subroute trees
-case class CellPhantom[I,O](cell: Cell[O]) extends CellComponent[I,O]
+case class CellPhantom[I,O](cell: Cell[O]) extends CellComponent[I,O] {
+
+  def document(builder: DocType): DocType = builder
+}
 
 trait AsCellComponent[I, O, P] {
   def apply(p: P): CellComponent[I,O]
@@ -79,6 +89,7 @@ trait AsCellComponent[I, O, P] {
 
 object AsCellComponent {
 
+  //TODO: clean up this monstrosity
   implicit def liftParser[I,O, A](implicit x : A =:= O) = new AsCellComponent[I, O, Parser[I,A]] {
     def apply(parser: Parser[I,A]): CellComponent[I,O] = CellParser(parser.asInstanceOf[Parser[I,O]])
   }
@@ -90,3 +101,4 @@ object AsCellComponent {
   */
 }
 
+}

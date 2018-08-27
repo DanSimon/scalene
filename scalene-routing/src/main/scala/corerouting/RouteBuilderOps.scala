@@ -5,7 +5,7 @@ import scala.language.higherKinds
 
 import scalene.Deferred
 
-trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding[I, FinalOut] =>
+trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[I, FinalOut] =>
 
   /**
    * Typeclass to combine things into RouteBuilders.  Those things can either be
@@ -70,16 +70,18 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
 
     def subroutes(subs: (RouteBuilder[L] => Route[I,FinalOut])*): Route[I,FinalOut] = {
       val built = builder.build(0)
-      val subroutes: Route[I,FinalOut] = Routes(subs.map{sub => sub(built.shallowClone)}.toArray : _*)
+      val subroutes: Array[Route[I,FinalOut]] = subs.map{sub => sub(built.shallowClone)}.toArray
+      val finalSubroutes = Routes(subroutes : _*)
       new Route[I,FinalOut] {
-        val vsetSize = subroutes.vsetSize + builder.size
+        val vsetSize = finalSubroutes.vsetSize + builder.size
 
         def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = {
           built.executor.executeParsers(input, values) flatMap {unit =>
             val nextFilters = collectedFilters ++ built.executor.filters
-            subroutes.execute(input, nextFilters, values)
+            finalSubroutes.execute(input, nextFilters, values)
           }
         }
+        def document: DocTreeNode = DocTreeNode(value = built.document(EmptyDoc), children = subroutes.map{_.document}.toList)
       }
 
     }
@@ -103,6 +105,8 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RouteBuilding
           )
           case Left(err) => Left(err)
         }
+
+        def document: DocTreeNode = DocTreeNode(built.document(EmptyDoc), Nil)
       }
     }
     def as(const: FinalOut): Route[I,FinalOut] = {
