@@ -4,6 +4,7 @@ import scalene._
 import http.{Method => HttpMethod, _}
 import scala.annotation.implicitNotFound
 import java.util.Arrays
+import scala.reflect.ClassTag
 import scalene.corerouting._
 
 case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[RequestContext, Unit] {
@@ -24,14 +25,22 @@ case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[Request
     }
   }
 
+  override def document(p: ParserDoc) = {
+    val s = p.pathSegments ++ pieces
+    p.copy(pathSegments = s)
+  }
+
 }
 
-class ExtractionSegmentParser[T](formatter: Parser[String,T]) extends Parser[RequestContext, T] {
+class ExtractionSegmentParser[T](formatter: Parser[String,T])(implicit ct: ClassTag[T]) extends Parser[RequestContext, T] {
   def parse(components: RequestContext): Result[T] = if (components.hasNext) {
     formatter.parse(components.next).left.map{e => e.copy(reason = ErrorReason.NotFound)}
   } else {
     Left(ParseError.notFound("expected component"))
   }
+
+  override def document(p: ParserDoc) = p.withPathSegment(s"<${ct.runtimeClass.getSimpleName}>")
+
 }
 
 case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extends Parser[RequestContext, Unit] {
@@ -45,6 +54,8 @@ case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extend
       Left(ParseError.notFound("Not a match"))
     }
   }
+
+  override def document(p: ParserDoc) = prefix.document(p).copy(method = method.name.toString)
 }
 
 trait AsPathParser[T, Out] {
@@ -59,7 +70,7 @@ object AsPathParser {
     def apply(in: String) = ConstantPrefixPath(in :: Nil)
   }
 
-  implicit def extractionParser[A,B](implicit formatter: Parser[String, A]) = new AsPathParser[Extraction[A,B], B] {
+  implicit def extractionParser[A,B](implicit formatter: Parser[String, A], ct: ClassTag[A]) = new AsPathParser[Extraction[A,B], B] {
     def apply(in: Extraction[A,B]) = in.extraction(new ExtractionSegmentParser(formatter))
   }
 
