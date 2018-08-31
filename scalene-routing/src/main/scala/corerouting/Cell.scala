@@ -91,16 +91,14 @@ trait AsCellComponent[I, O, P] {
 
 object AsCellComponent {
 
-  //TODO: clean up this monstrosity
-  implicit def liftParser[I,O, A](implicit x : A =:= O) = new AsCellComponent[I, O, Parser[I,A]] {
-    def apply(parser: Parser[I,A]): CellComponent[I,O] = CellParser(parser.asInstanceOf[Parser[I,O]])
+  implicit def liftParser[I,A] = new AsCellComponent[I, A, Parser[I,A]] {
+    def apply(parser: Parser[I,A]): CellComponent[I,A] = CellParser(parser)
   }
 
-  /*
-  implicit def liftFilter = new AsCellComponent[Filter] {
-    def apply[I,O](filter: Filter[I,O]) = CellFilter(filter)
+  implicit def liftFilter[I,A] = new AsCellComponent[I, A, Filter[I,A]] {
+    def apply(filter: Filter[I,A]): CellComponent[I,A] = CellFilter(filter)
   }
-  */
+
 }
 
 }

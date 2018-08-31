@@ -17,7 +17,7 @@ case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[Request
   def add(segment: String) = copy(prefixPieces = this.prefixPieces :+ segment)
 
   def parse(ctx: RequestContext): Result[Unit] = {
-    if (Arrays.equals(ctx.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)) {
+    if (ctx.request.path.startsWith(prefix)) {
       ctx.pathIterator.advance(prefix.size)
       Right(())
     } else {

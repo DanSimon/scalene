@@ -127,7 +127,7 @@ class EventLoop(
       c.handler.idleTimeout.isFinite && c.lastActivity < (timeKeeper() - c.handler.idleTimeout.toMillis)
     }
     toClose.foreach{case (_, c) => 
-      removeConnection(c, DisconnectReason.TimedOut)
+      removeConnection(c, DisconnectReason.TimeOut)
     }    
     if (!toClose.isEmpty) {
       info(s"""closed ${toClose.size} idle connection${if (toClose.size > 1) "s" else ""}""")

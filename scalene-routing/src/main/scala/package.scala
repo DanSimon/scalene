@@ -31,7 +31,8 @@ with PathParsing with ResponseBuilding {
 
   }
 
-  def ![T]: Extraction[T,T] = IdentityExtraction[T]()
+  def ![T]: Extraction[T,T] = ![T]("extraction")
+  def ![T](name: String): Extraction[T,T] = IdentityExtraction(name) 
 
 
 

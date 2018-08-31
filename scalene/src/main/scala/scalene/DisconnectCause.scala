@@ -13,7 +13,7 @@ object DisconnectReason {
 
   case object Shutdown extends DisconnectReason ("terminated", "Server is shutting down")
 
-  case object TimeOut extends DisconnectReason  "timeout", "Timed out")
+  case object TimeOut extends DisconnectReason ( "timeout", "Timed out")
 
   case class Error(error: Throwable) extends DisconnectReason ("error", s"Error: $error")
 

@@ -8,10 +8,15 @@ object Main extends App {
   case class Foo(i: Int, s: String)
   val parseFooFromPath = ![Int] / ![String] map Foo.tupled
 
+  val PositiveInt = ![Int]("num")
+    .filter(_ > 0, "{NAME} must be a positive integer")
+
   val fooRoutes = "foo" subroutes (
     _ + POST + parseFooFromPath to {foo => s"got a foo $foo".ok},
-    _ + GET + ![Int].filter{_ > 0} to {id => s"give me foo $id".ok}
+    _ + GET + PositiveInt to {id => s"give me foo $id".ok}
   )
+
+  println(fooRoutes.document)
 
   val routes = Routes(
     fooRoutes,
