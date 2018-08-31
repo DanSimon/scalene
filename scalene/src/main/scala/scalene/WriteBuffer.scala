@@ -1,3 +1,7 @@
+//Portions of this derived from 
+//https://github.com/tumblr/colossus/blob/master/colossus/src/main/scala/colossus/core/WriteBuffer.scala
+//Copyright (c) 2016 Tumblr. Inc and other contributors
+
 package scalene
 
 import java.nio.ByteBuffer
@@ -82,7 +86,6 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
   }
 
   def reset() {
-    //println("RESET")
     current = base
     base.clear()
   }

@@ -1,36 +1,21 @@
 package scalene
 
-sealed trait DisconnectReason
+sealed abstract class DisconnectReason(
+  val name: String, 
+  val description: String
+)
 
 object DisconnectReason {
 
-  case object LocalClosed extends DisconnectReason {
-    def tagString = "disconnect"
-    def logString = "Closed by local host"
-  }
+  case object LocalClosed extends DisconnectReason ("localclosed", "Closed by local host")
 
-  case object RemoteClosed extends DisconnectReason {
-    def tagString = "closed"
-    def logString = "Closed by remote host"
-  }
+  case object RemoteClosed extends DisconnectReason ("remoteclosed", "Closed by remote host")
 
-  case object SystemShutdown extends DisconnectReason {
-    def tagString = "terminated"
-    def logString = "IO System is shutting down"
-  }
+  case object Shutdown extends DisconnectReason ("terminated", "Server is shutting down")
 
-  case object TimedOut extends DisconnectReason {
-    def tagString = "timedout"
-    def logString = "Timed out"
-  }
+  case object TimeOut extends DisconnectReason  "timeout", "Timed out")
 
-  case class Error(error: Throwable) extends DisconnectReason {
-    def tagString = "error"
-    def logString = s"Error: $error"
-  }
+  case class Error(error: Throwable) extends DisconnectReason ("error", s"Error: $error")
 
-  case class ClientConnectFailed(error: Throwable) extends DisconnectReason {
-    def tagString = "connectfailed"
-    def logString = "Failed to Connect"
-  }
+  case class ClientConnectFailed(error: Throwable) extends DisconnectReason ("connectfailed", "Failed to Connect")
 }

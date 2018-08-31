@@ -1,3 +1,7 @@
+//Portions of this derived from
+//https://github.com/tumblr/colossus/blob/master/colossus/src/main/scala/colossus/core/DataBuffer.scala
+//Copyright (c) 2017 Tumblr and other contributors
+
 package scalene
 
 import java.nio.ByteBuffer

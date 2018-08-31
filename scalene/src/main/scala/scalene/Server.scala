@@ -95,7 +95,7 @@ class ServerActor(
 
   override def onStart() {
     super.onStart()
-    (1 to settings.numWorkers.getOrElse(1)).foreach{i =>
+    (1 to settings.numWorkers.getOrElse(Runtime.getRuntime.availableProcessors())).foreach{i =>
       val dispatcher = context.dispatcher.pool.createDispatcher
       val actor: Actor[ServerToWorkerMessage] = dispatcher.attach(ctx => new ServerWorker(
         self.specialize[WorkerToServerMessage],

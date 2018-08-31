@@ -177,6 +177,7 @@ class EventLoop(
             }
             case t: Throwable => {
               warn(s"Unknown Error! : ${t.getClass.getName}: ${t.getMessage}")
+              t.printStackTrace
               removeConnection(manager, DisconnectReason.Error(t))
               sc.close()
               key.cancel()

@@ -6,15 +6,12 @@ import java.net.InetSocketAddress
 
 import util._
 
-/**
-  * Represent the connection state.  NotConnected, Connected or Connecting.
-  */
 sealed trait ConnectionState
 
 object ConnectionState {
   case object NotConnected extends ConnectionState
-  case object Connected    extends ConnectionState
   case object Connecting   extends ConnectionState
+  case object Connected    extends ConnectionState
 }
 
 trait ConnectionInfo {

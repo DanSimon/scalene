@@ -16,7 +16,9 @@ class VSet(size: Int) {
 object VSet {
   def apply(size: Int): VSet = new VSet(size)
 
-  val empty = VSet(0)
+  //very weird, but calling `VSet(0)` instead of `new VSet(0)` causes a
+  //stackoverflow exception ???
+  val empty = new VSet(0)
 }
 
 class Cell[T](val index: Int) {
