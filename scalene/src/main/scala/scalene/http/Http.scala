@@ -28,6 +28,12 @@ class Method(val name: String) {
   val lFirst = bytes(0)
   val uFirst = name.toUpperCase.getBytes()(0)
 
+  override def toString = name
+  override def equals(that: Any) = that match {
+    case m: Method if Arrays.equals(m.bytes, bytes) => true
+    case _ => false
+  }
+
 }
 
 object Method {

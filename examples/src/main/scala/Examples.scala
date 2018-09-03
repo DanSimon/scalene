@@ -21,7 +21,8 @@ object Main extends App {
   val routes = Routes(
     fooRoutes,
     GET / "sum" / ![Int] / ![Int] to {case (a,b) => (a + b).ok},
-    GET / "quotient" / ![Int] / ![Int].filter{_ != 0} to {case (a,b) => (a / b).ok}
+    GET / "quotient" / ![Int] / 
+      ![Int].filter(_ != 0, "dividend can't be zero") to {case (a,b) => (a / b).ok}
   )
   
   val settings = Settings.basic(serverName = "examples", port = 8080)

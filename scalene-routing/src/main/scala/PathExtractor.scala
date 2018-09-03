@@ -17,8 +17,9 @@ case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[Request
   def add(segment: String) = copy(prefixPieces = this.prefixPieces :+ segment)
 
   def parse(ctx: RequestContext): Result[Unit] = {
+    //println(s"checking ${ctx.request.path} for '$prefix'")
     if (ctx.request.path.startsWith(prefix)) {
-      ctx.pathIterator.advance(prefix.size)
+      ctx.pathIterator.advance(pieces.size)
       Right(())
     } else {
       Left(ParseError.notFound("Not a match"))
@@ -32,11 +33,12 @@ case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[Request
 
 }
 
-class ExtractionSegmentParser[T](formatter: Parser[String,T])(implicit ct: ClassTag[T]) extends Parser[RequestContext, T] {
+class ExtractionSegmentParser[T](name: String, formatter: Parser[String,T])(implicit ct: ClassTag[T]) extends Parser[RequestContext, T] {
+  val error = Left(ParseError.notFound(s"missing component $name of type ${ct.runtimeClass.getSimpleName}"))
   def parse(components: RequestContext): Result[T] = if (components.hasNext) {
     formatter.parse(components.next).left.map{e => e.copy(reason = ErrorReason.NotFound)}
   } else {
-    Left(ParseError.notFound("expected component"))
+    error
   }
 
   override def document(p: ParserDoc) = p.withPathSegment(s"<${ct.runtimeClass.getSimpleName}>")
@@ -44,14 +46,16 @@ class ExtractionSegmentParser[T](formatter: Parser[String,T])(implicit ct: Class
 }
 
 case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extends Parser[RequestContext, Unit] {
-  val bytes = s"${method.name.toUpperCase} ${prefix.prefix}".getBytes
+  val prefixString = s"${method.name.toUpperCase} ${prefix.prefix}"
+  val bytes = prefixString.getBytes
   val ok = Right(())
+  val error = Left(ParseError.notFound(s"did not match $prefixString"))
   def parse(req: RequestContext): Result[Unit] = {
     if (Arrays.equals(req.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)) {
       req.pathIterator.advance(prefix.size)
       ok
     } else {
-      Left(ParseError.notFound("Not a match"))
+      error
     }
   }
 
@@ -71,7 +75,7 @@ object AsPathParser {
   }
 
   implicit def extractionParser[A,B](implicit formatter: Parser[String, A], ct: ClassTag[A]) = new AsPathParser[Extraction[A,B], B] {
-    def apply(in: Extraction[A,B]) = in.extraction(new ExtractionSegmentParser(formatter))
+    def apply(in: Extraction[A,B]) = in.extraction(new ExtractionSegmentParser(in.name, formatter))
   }
 
   implicit def identity[T, P <: Parser[RequestContext, T]] = new AsPathParser[P, T] {

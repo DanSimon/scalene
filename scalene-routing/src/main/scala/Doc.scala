@@ -9,6 +9,8 @@ case class ParserDoc(pathSegments: List[String], method: String, headers: List[S
     val path = "/" + pathSegments.mkString("/") + params
     s"$method $path" //TODO: headers
   }
+
+  override def toString = build
 }
 
 object ParserDoc {

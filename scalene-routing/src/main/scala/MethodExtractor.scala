@@ -11,6 +11,7 @@ case class Method(method: HttpMethod) extends Parser[RequestContext, Unit] {
   } else {
     Left(ParseError.notFound(s"Expected method $method, got ${req.request.method}"))
   }
+  override def document(d: DocType): DocType = d.copy(method = method.name.toString)
 }
 
 object Method {

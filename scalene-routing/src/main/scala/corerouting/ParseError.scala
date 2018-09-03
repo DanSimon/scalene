@@ -40,6 +40,8 @@ case class ParseError(val reason: ErrorReason, lazyMessage: () => String) {
 
   def message = lazyMessage()
 
+  override def toString = s"$reason, ${lazyMessage()}"
+
 }
 
 object ParseError {

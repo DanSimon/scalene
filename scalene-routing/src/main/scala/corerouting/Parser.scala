@@ -15,6 +15,7 @@ trait ParserContainer[In <: Clonable[In], Out] { self: RoutingSuite[In, Out] =>
       val me = this
       new Parser[I,U] {
         def parse(input: I): Result[U] = me.parse(input).map(f)
+        override def document(d: DocType): DocType = me.document(d)
       }
     }
 
@@ -23,6 +24,7 @@ trait ParserContainer[In <: Clonable[In], Out] { self: RoutingSuite[In, Out] =>
       val me = this
       new Parser[I,O] {
         def parse(input:I): Result[O] = me.parse(input).filterOrElse(f, ParseError(ErrorReason.BadRequest, () => failureMessage))
+        override def document(d: DocType): DocType = me.document(d)
       }
     }
 
