@@ -2,9 +2,13 @@
 //https://github.com/tumblr/colossus/blob/master/colossus/src/main/scala/colossus/protocols/http/Header.scala
 //Copyright (c) 2017 Tumblr
 
-import java.util.{List => JList}
+package scalene.http
+import scalene._
+import scalene.util._
 
-package scalene
+import java.util.{LinkedList, List => JList}
+
+class ParseException(message: String) extends Exception(message)
 
 class ParsedHeaders(
     headers: JList[Header],
@@ -25,14 +29,16 @@ class ParsedHeaders(
   override def transferEncoding =
     if (transferEncodingOpt.isDefined) transferEncodingOpt.get else TransferEncoding.Identity
 
-  override def encode(buffer: DataOutBuffer) {
-    transferEncodingOpt.foreach { _.header.encode(buffer) }
+  /*
+  override def encode(buffer: WriteBuffer, tk: TimeKeeper) {
+    transferEncodingOpt.foreach { buffer.write(_.header.encodedLine(tk)) }
     connection.foreach { _.header.encode(buffer) }
     contentLength.foreach { c =>
       Header.encodeContentLength(buffer, c)
     }
     super.encode(buffer)
   }
+  */
 
 }
 
@@ -48,14 +54,14 @@ class Headers(private[http] val headers: JList[Header]) {
     toSeq.collect { case x if (x.key == l) => x.value }
   }
 
-  def contentLength: Option[Int] = firstValue(Headers.ContentLength).map { _.toInt }
+  def contentLength: Option[Int] = firstValue(Headers.ContentLength.name).map { _.toInt }
 
   def transferEncoding: TransferEncoding =
-    firstValue(Headers.TransferEncoding).map(TransferEncoding(_)).getOrElse(TransferEncoding.Identity)
+    firstValue(Headers.TransferEncoding.name).map(TransferEncoding(_)).getOrElse(TransferEncoding.Identity)
 
-  def connection: Option[Connection] = firstValue(Headers.Connection).map(Connection(_))
+  def connection: Option[Connection] = firstValue(Headers.Connection.name).map(Connection(_))
 
-  def contentType: Option[String] = firstValue(Headers.ContentType)
+  def contentType: Option[String] = firstValue(Headers.ContentType.name)
 
   def +(kv: (String, String)): Headers = {
     val n = Header(kv._1, kv._2)
@@ -148,7 +154,7 @@ object TransferEncoding {
   }
   def fromHeaderLine(line: Array[Byte]): TransferEncoding = {
     var b = Headers.TransferEncoding.bytes.length + 1
-    while (line(b) == SPACE_BYTE) { b += 1 }
+    while (line(b) == HttpParsing.SPACE_BYTE) { b += 1 }
     if (line(b) == 'c' || line(b) == 'C') {
       TransferEncoding.Chunked
     } else {

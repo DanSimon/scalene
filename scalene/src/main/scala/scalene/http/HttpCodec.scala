@@ -34,7 +34,7 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
       headers = buildHeaders,
       transferEncodingOpt = buildTransferEncoding,
       contentType = None,
-      contentLength = (if buildContentLength == 0) None else Some(buildContentLength),
+      contentLength = if (buildContentLength == 0) None else Some(buildContentLength),
       connection = None
     )
     finishDecode(buildFirstLine,  headers, buf.readAll)
@@ -61,7 +61,7 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
 
   final protected def parseSpecialHeader(header: Array[Byte]): Unit = {
     if (buildContentLength == 0 && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
-      buildContentLength = trimStringToInt(header, contentLengthKey.length + 2)
+      buildContentLength = trimStringToInt(header, Headers.ContentLength.bytes.length + 2)
     } else if (ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.TransferEncoding.bytes)) {
       buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header))
     }
@@ -160,7 +160,7 @@ class HttpServerCodec(
 ) 
 extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpResponse] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
+  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: Array[Byte]) {
     onDecode(new ParsedHttpRequest(firstLine, headers, Body(body, None)))
   }
 
@@ -173,7 +173,7 @@ class HttpClientCodec(
 ) 
 extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpRequest] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte]) {
+  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: Array[Byte]) {
     onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
   }
 
