@@ -124,35 +124,11 @@ object Header {
 
 
 trait HttpMessage {
-  def headers: LinkedList[Header]
+  def headers: Headers
   def body: Body
   def version: HttpVersion
 
   def encodeFirstLine(buf: WriteBuffer): Unit
-
-  def headerValue(key: String): Option[String] = {
-    val it = headers.iterator
-    var result: Option[String] = None
-    while (it.hasNext && result.isEmpty) {
-      val next = it.next
-      if (next.key == key) {
-        result = Some(next.value)
-      }
-    }
-    result
-  }
-
-  def headerValues(key: String): Array[String] = {
-    val builder = new LinkedList[String]
-    val it = headers.iterator
-    while (it.hasNext) {
-      val next = it.next
-      if (next.key == key) {
-        builder.add(next.value)
-      }
-    }
-    builder.toArray.asInstanceOf[Array[String]]
-  }
 
 }
 

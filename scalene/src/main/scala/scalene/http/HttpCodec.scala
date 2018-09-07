@@ -20,20 +20,28 @@ import HttpParsing._
 
 trait HttpMessageDecoder { self: FastArrayBuilding =>
 
-  def finishDecode(firstLine: Array[Byte], headers: LinkedList[Header], body: Array[Byte])
+  def finishDecode(firstLine: Array[Byte], headers: Headers, body: Array[Byte])
 
   final val zeroFirstLine = new Array[Byte](0)
-  final val contentLengthKey = "content-length".getBytes
 
   private var buildFirstLine = new Array[Byte](0)
   private var buildHeaders = new LinkedList[Header]
   private var buildContentLength = 0
+  private var buildTransferEncoding: Option[TransferEncoding] = None
 
   final def body(buf: ReadBuffer): Unit = {
-    finishDecode(buildFirstLine,  buildHeaders, buf.readAll)
+    val headers = new ParsedHeaders(
+      headers = buildHeaders,
+      transferEncodingOpt = buildTransferEncoding,
+      contentType = None,
+      contentLength = (if buildContentLength == 0) None else Some(buildContentLength),
+      connection = None
+    )
+    finishDecode(buildFirstLine,  headers, buf.readAll)
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = 0
+    buildTransferEncoding = None
   }
 
   final def line(buf: ReadBuffer): Int = {
@@ -44,16 +52,18 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
         buildFirstLine = buf.readAll
       } else {          
         val header = buf.readAll
-        headerContentLength(header)
+        parseSpecialHeader(header)
         buildHeaders.add(new StaticHeader(header))
       }
       BodyCode.HEAD_CONTINUE
     }
   }
 
-  final protected def headerContentLength(header: Array[Byte]): Unit = {
-    if (buildContentLength == 0 && ParsingUtils.caseInsensitiveSubstringMatch(header, contentLengthKey)) {
+  final protected def parseSpecialHeader(header: Array[Byte]): Unit = {
+    if (buildContentLength == 0 && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
       buildContentLength = trimStringToInt(header, contentLengthKey.length + 2)
+    } else if (ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.TransferEncoding.bytes)) {
+      buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header))
     }
   }
 
@@ -118,11 +128,7 @@ trait HttpMessageEncoding[T <: HttpMessage] {
     if (message.body.contentType.isDefined) {
       buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
     }
-
-    val h = message.headers.listIterator(0)
-    while (h.hasNext) {
-      buffer.write(h.next.encodedLine(timeKeeper))
-    }
+    message.headers.encode(buffer, timeKeeper)
 
     var i = 0
     while (i < commonHeaders.length) {

@@ -48,7 +48,7 @@ class QueryParameters(str: String) {
 }
 
 //firstLine does not include newline
-class ParsedHttpRequest(val firstLine: Array[Byte], val headers: LinkedList[Header], val body: Body) extends HttpRequest {
+class ParsedHttpRequest(val firstLine: Array[Byte], val headers: Headers, val body: Body) extends HttpRequest {
   def urlBytes = url.getBytes
   private def urlStart = method.bytes.length + 1
   private def urlLength = firstLine.length - 9 - urlStart
@@ -105,7 +105,7 @@ class ParsedHttpRequest(val firstLine: Array[Byte], val headers: LinkedList[Head
   def methodEquals(method: Method): Boolean = ParsingUtils.caseInsensitiveSubstringMatch(firstLine, method.bytes)
 }
 
-case class BasicHttpRequest(method: Method, url: String, headers: LinkedList[Header], body: Body) extends HttpRequest {
+case class BasicHttpRequest(method: Method, url: String, headers: Headers, body: Body) extends HttpRequest {
   def urlBytes = url.getBytes
   def version = HttpVersion.`1.1`
 
@@ -114,6 +114,5 @@ case class BasicHttpRequest(method: Method, url: String, headers: LinkedList[Hea
 }
 
 object HttpRequest {
-  def noHeaders = new LinkedList[Header]()
-  def get(url: String) = BasicHttpRequest(Method.Get, url, noHeaders, Body.Empty)
+  def get(url: String) = BasicHttpRequest(Method.Get, url, Headers.Empty, Body.Empty)
 }
