@@ -1,6 +1,25 @@
 package scalene
 package stream
 
+trait Signal {
+  def onSignaled(f: => Unit): Unit
+}
+
+class LiveSignal extends Signal {
+  private var event: Option[() => Unit] = None
+  private var signaled = false
+  def onSignaled(f: => Unit): Unit = if (signaled) {
+    f
+  } else {
+    event = Some(() => f)
+  }
+
+  def signal(): Unit = {
+    event.foreach(f => f())
+    event = None
+  }
+}
+
 sealed trait PushResult
 object PushResult {
   case object Ok extends PushResult
@@ -8,24 +27,61 @@ object PushResult {
   case class Error(reason: Throwable) extends PushResult
 }
 
+trait Receiver[T] {
+  def push(item: T): PushResult
 
-trait Collector[T, E] extends Sink[T]{
-  def result: Async[E]
 }
 
-trait Sink[T] {
-  def push(item: T): PushResult
+trait BackPressureHandler[T] {
+  def receiver: Receiver[T]
+  def onPause(): Unit
+  def onResume(): Unit
+  def onError(reason: Throwable): Unit
+
+  def push(item: T): Unit = receiver.push(item) match {
+    case PushResult.Ok => ()
+    case PushResult.Wait(signal) => {
+      onPause()
+      signal.onSignaled{
+        onResume()
+      }
+    }
+    case PushResult.Error(reason) => {
+      onError(reason)
+    }
+  }
+
+}
+
+trait Sink[T] extends Receiver[T] {
   //close the stream, triggering the result
   def close(): Unit  
   def error(reason: Throwable): Unit
 }
 
-class LiveSink[T] extends Sink[T] {
-  private var downstream: Option[Sink[T]] = None
+trait Collector[T, E] extends Sink[T]{
+  def result: Async[E]
+}
+
+object Sink {
+
+  def blackHole[T]: Sink[T] = new Sink[T] {
+    def push(item: T) = PushResult.Ok
+    def close() = {}
+    def error(reason: Throwable) = {}
+  }
+}
+
+//trait for an object that will produce items that should be pushed to a downstream Sink.
+trait LiveSource[T] {
+  protected var downstream: Option[Sink[T]] = None
 
   def setDownstream(sink: Sink[T]): Unit = {
     downstream = Some(sink)
   }
+}
+
+class LiveSink[T] extends Sink[T] with LiveSource[T]{
 
   def push(item: T) = downstream
     .map{_.push(item)}
@@ -45,21 +101,60 @@ class MappedSink[A,B](mapper: A => B, downstream: Sink[B]) extends Sink[A] {
   def error(reason: Throwable): Unit = downstream.error(reason)
 }
 
-class StreamBuilder[I, T](initial: LiveSink[I], mapper: I => T) extends Stream[T] {
+class StreamBuilder[I, T](val initial: LiveSource[I], mapper: I => T) extends Stream[T] {
 
   def map[U](f: T => U) = new StreamBuilder[I,U](initial, i => f(mapper(i)))
 
   def complete[E](collector: Deferred[Collector[T, E]]): Deferred[E] = collector.flatMap {c =>
     initial.setDownstream(new MappedSink(mapper, c))
-    defer(c.result)
+    ConstantDeferred(c.result)
+  }
+
+}
+
+object StreamBuilder { 
+  def apply[T](initial: LiveSource[T]): StreamBuilder[T, T] = new StreamBuilder(initial, x => x)
+}
+
+
+trait Stream[T] {
+  def map[U](f: T => U): Stream[U]
+
+  def complete[E](collector: Deferred[Collector[T, E]]): Deferred[E]
+
+}
+
+object Stream {
+
+  def fromIter[T](iter: Iterator[T]): Stream[T] = {
+    val source = new LiveSource[T] {
+      override def setDownstream(sink: Sink[T]): Unit = {
+        super.setDownstream(sink)
+        continueDrain()
+      }
+
+
+      def continueDrain(): Unit = {
+        var continue = true
+        while (continue && iter.hasNext) {
+          downstream.get.push(iter.next) match {
+            case PushResult.Ok => {}
+            case PushResult.Wait(signal) => {
+              signal.onSignaled{
+                continueDrain()
+              }
+              continue = false
+            }
+            case PushResult.Error(err) => {
+              continue = false
+            }
+          }
+        }
+      }
+    }
+    StreamBuilder(source)
   }
 
 }
 
 
-trait Stream[T] {
-  def map[U](f: T => U): Stream[T]
-
-  def complete[E](collector: Deferred[Collector[T, E]]): Deferred[E]
-
-}

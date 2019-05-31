@@ -6,6 +6,7 @@ import java.util.{Arrays, Date, LinkedList, Locale, TimeZone}
 
 import scalene.actor.Pool
 import scalene._
+import scalene.stream._
 import scalene.util._
 
 import HttpParsing._
@@ -146,8 +147,14 @@ object ContentType {
   val `application/json` = ContentType("application/json")
 }
 
-case class Body(data: Array[Byte], contentType: Option[ContentType]) {
+case class Body(data: BodyData, contentType: Option[ContentType]) {
 
+}
+
+sealed trait BodyData
+object BodyData {
+  case class Static(data: ReadBuffer) extends BodyData
+  case class Stream(data: scalene.stream.Stream[ReadBuffer]) extends BodyData
 }
 
 trait BodyFormatter[T] {
@@ -159,7 +166,9 @@ trait BodyFormatter[T] {
 
 object Body {
 
-  val Empty = Body(Nil.toArray, None)
+  def apply(data: Array[Byte], contentType: Option[ContentType]): Body = Body(BodyData.Static(ReadBuffer(data)), contentType)
+
+  val Empty = Body(BodyData.Static(ReadBuffer(new Array[Byte](0))), None)
 
   def plain(str: String) = Body(str.getBytes, Some(ContentType.`text/plain`))
   def json(encoded: String) = Body(encoded.getBytes, Some(ContentType.`application/json`))

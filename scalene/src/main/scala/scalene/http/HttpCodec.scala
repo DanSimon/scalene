@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util.{Arrays, Date, LinkedList, Locale, TimeZone}
 import scalene._
 import scalene.util._
+import scalene.stream._
 
 
 object HttpParsing {
@@ -18,9 +19,9 @@ object HttpParsing {
 }
 import HttpParsing._
 
-trait HttpMessageDecoder { self: FastArrayBuilding =>
+trait HttpMessageDecoder {
 
-  def finishDecode(firstLine: Array[Byte], headers: Headers, body: Array[Byte])
+  def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData)
 
   final val zeroFirstLine = new Array[Byte](0)
 
@@ -28,8 +29,10 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
   private var buildHeaders = new LinkedList[Header]
   private var buildContentLength = 0
   private var buildTransferEncoding: Option[TransferEncoding] = None
+  private var currentStreamManager: StreamManager = NoBodyManager
 
-  final def body(buf: ReadBuffer): Unit = {
+
+  final def buildMessage(): StreamManager = {
     val headers = new ParsedHeaders(
       headers = buildHeaders,
       transferEncodingOpt = buildTransferEncoding,
@@ -37,16 +40,30 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
       contentLength = if (buildContentLength == 0) None else Some(buildContentLength),
       connection = None
     )
-    finishDecode(buildFirstLine,  headers, buf.readAll)
+    val streamManager = buildTransferEncoding match {
+      case None => if (buildContentLength == 0) {
+        NoBodyManager
+      } else {
+        new BasicStreamManager(buildContentLength)
+      }
+      case Some(TransferEncoding.Chunked) => {
+        ???
+      }
+    }
+    val builder = StreamBuilder(streamManager)
+    finishDecode(buildFirstLine,  headers, BodyData.Stream(builder))
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = 0
     buildTransferEncoding = None
+    streamManager
   }
 
-  final def line(buf: ReadBuffer): Int = {
+  //returns true if we've finished reading the header
+  final def line(buf: ReadBuffer): Boolean = {
     if (buf.size == 0) { //0 size is the blank newline at the end of the head
-      buildContentLength
+      currentStreamManager = buildMessage()
+      true
     } else {
       if (buildFirstLine.length == 0) {
         buildFirstLine = buf.readAll
@@ -55,7 +72,7 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
         parseSpecialHeader(header)
         buildHeaders.add(new StaticHeader(header))
       }
-      BodyCode.HEAD_CONTINUE
+      false
     }
   }
 
@@ -86,30 +103,20 @@ trait HttpMessageDecoder { self: FastArrayBuilding =>
 
   //parsing stuff
   private var parsingHead = true
-  private var bodySize = 0
-
   final val headParser = new LineParser(line, false, 100)
-  final val zeroBody = ReadBuffer(ByteBuffer.wrap(new Array[Byte](0)))
-
-  def initSize = 1024
-  def shrinkOnComplete = true
 
   final def decode(buffer: ReadBuffer): Unit = {
-    while (parsingHead && buffer.hasNext) {
-      bodySize = headParser.parse(buffer)
-      if (bodySize == 0) {
-        body(zeroBody)        
-      } else if (bodySize > 0) {
-        parsingHead = false        
-      }
-    } 
-    if (!parsingHead) {
-      val amountToTake = math.min(bodySize, buffer.bytesRemaining)
-      write(buffer, amountToTake)
-      bodySize -= amountToTake
-      if (bodySize == 0) {
-        complete[Unit](body)
-        parsingHead = true
+
+    while (buffer.hasNext) {
+      while (parsingHead && buffer.hasNext) {
+        parsingHead = !headParser.parse(buffer)
+      } 
+      if (!parsingHead) {
+        if (currentStreamManager.isDone) {
+          parsingHead = true
+        } else {
+          currentStreamManager.push(buffer)
+        }
       }
     }
   }
@@ -122,21 +129,26 @@ trait HttpMessageEncoding[T <: HttpMessage] {
 
   final def encode(message: T, buffer: WriteBuffer) {
     message.encodeFirstLine(buffer)
-    buffer.write(ContentLengthPrefix)
-    buffer.write(message.body.data.length)
-    buffer.write(Newline)
-    if (message.body.contentType.isDefined) {
-      buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
-    }
-    message.headers.encode(buffer, timeKeeper)
+    message.body.data match {
+      case BodyData.Static(buf) => {
+        buffer.write(ContentLengthPrefix)
+        buffer.write(buf.bytesRemaining)
+        buffer.write(Newline)
+        if (message.body.contentType.isDefined) {
+          buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
+        }
+        message.headers.encode(buffer, timeKeeper)
 
-    var i = 0
-    while (i < commonHeaders.length) {
-      buffer.write(commonHeaders(i).encodedLine(timeKeeper))
-      i += 1
+        var i = 0
+        while (i < commonHeaders.length) {
+          buffer.write(commonHeaders(i).encodedLine(timeKeeper))
+          i += 1
+        }
+        buffer.write(Newline)
+        buffer.write(buf)
+      }
+      case _ => throw new Exception("Cannot encode Streams yet")
     }
-    buffer.write(Newline)
-    buffer.write(message.body.data)
   }
 }
 
@@ -158,9 +170,9 @@ class HttpServerCodec(
   val timeKeeper: TimeKeeper,
   val commonHeaders: Array[Header]
 ) 
-extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpResponse] {
+extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder  with HttpMessageEncoding[HttpResponse] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: Array[Byte]) {
+  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData) {
     onDecode(new ParsedHttpRequest(firstLine, headers, Body(body, None)))
   }
 
@@ -171,10 +183,60 @@ class HttpClientCodec(
   val timeKeeper: TimeKeeper,
   val commonHeaders: Array[Header]
 ) 
-extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder with FastArrayBuilding with HttpMessageEncoding[HttpRequest] {
+extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder  with HttpMessageEncoding[HttpRequest] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: Array[Byte]) {
+  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData) {
     onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
   }
+
+}
+
+trait StreamManager extends Sink[ReadBuffer] {
+
+  def isDone: Boolean
+}
+
+class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with StreamManager {
+
+  private var bodyRemaining = bodySize
+
+  def isDone = bodyRemaining == 0
+
+  final override def push(buffer: ReadBuffer): PushResult = {
+    if (bodyRemaining >= buffer.size) {
+      bodyRemaining -= buffer.size
+      super.push(buffer)
+    } else {
+      val prevLimit = buffer.buffer.limit()
+      buffer.buffer.limit(bodyRemaining)
+      bodyRemaining = 0
+      val res = super.push(buffer)
+      buffer.buffer.limit(prevLimit)
+      res
+    }
+  }
+
+}
+
+object NoBodyManager extends BasicStreamManager(0)
+
+//This collects raw data into an array.  Should not contain chunk headers
+class BodyCollector extends Collector[ReadBuffer, Array[Byte]] with FastArrayBuilding {
+
+  def initSize = 100
+  def shrinkOnComplete = true
+
+  val result = new PromiseAsync[Array[Byte]]
+
+  def push(buffer: ReadBuffer): PushResult = {
+    write(buffer)
+    PushResult.Ok
+  }
+
+  def close(): Unit = {
+
+  }
+
+  def error(reason: Throwable) = result.fail(reason)
 
 }

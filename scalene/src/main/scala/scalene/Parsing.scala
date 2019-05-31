@@ -39,6 +39,10 @@ trait FastArrayBuilding {
     writePos += bytes
   }
 
+  final def write(buffer: ReadBuffer) {
+    write(buffer, buffer.bytesRemaining)
+  }
+
   final def write(bytes: Array[Byte]) {
     while (writePos + bytes.length > build.length) {
       grow()
@@ -62,7 +66,7 @@ object BodyCode {
 }
 import BodyCode._
 
-final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean = false, internalBufferBaseSize: Int = 100)
+final class LineParser(constructor: ReadBuffer => Boolean, includeNewline: Boolean = false, internalBufferBaseSize: Int = 100)
     extends FastArrayBuilding {
   private val CR = '\r'.toByte
   private val LF = '\n'.toByte
@@ -72,7 +76,7 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
 
   var scanByte = CR
 
-  private final def checkLineFeed(buffer: ReadBuffer): Int = {
+  private final def checkLineFeed(buffer: ReadBuffer): Boolean = {
     val b = buffer.buffer.get
     if (b == LF) {
       if (includeNewline) {
@@ -80,23 +84,23 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
         write(LF)
       }
       scanByte = CR
-      complete[Int](constructor)
+      complete[Boolean](constructor)
     } else {
       throw new Exception("Malformed newline, expected \\r, got '$b'")
     }
   }
 
   //TODO : should return something instead of Int to indicate chunked body or body until EOS
-  final def parse(buffer: ReadBuffer): Int = {
-    var bodySize = HEAD_CONTINUE
+  final def parse(buffer: ReadBuffer): Boolean = {
+    var done = false
     if (scanByte == LF && ! buffer.isEmpty) {
-      bodySize = checkLineFeed(buffer)
+      done = checkLineFeed(buffer)
     }
-    while (!buffer.isEmpty && bodySize == BodyCode.HEAD_CONTINUE) {
+    while (!buffer.isEmpty && !done) {
       val byte = buffer.next
       if (byte == CR) {
         if (!buffer.isEmpty) {
-          bodySize = checkLineFeed(buffer)
+          done = checkLineFeed(buffer)
         } else {
           //this would only happen if the \n is in the next packet/buffer,
           //very rare but it can happen, but we can't complete until we've read it in
@@ -106,7 +110,7 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
         write(byte)
       }
     }
-    bodySize
+    done
   }
 
 }
