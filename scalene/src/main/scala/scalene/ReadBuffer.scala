@@ -34,6 +34,13 @@ case class ReadBuffer(buffer: ByteBuffer) extends AnyVal {
     buffer.get(target, offset, length)
   }
 
+  def peekCopy(): Array[Byte] = {
+    buffer.mark()
+    val data = readAll
+    buffer.reset()
+    data
+  }
+
   def skip(n: Int) = {
     buffer.position(buffer.position() + n)
   }

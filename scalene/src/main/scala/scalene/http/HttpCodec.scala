@@ -39,7 +39,6 @@ trait HttpMessageDecoder extends LineParser {
 
   @inline
   final def buildMessage(): StreamManager = {
-    /*
     val headers = new ParsedHeaders(
       headers = buildHeaders,
       transferEncodingOpt = buildTransferEncoding,
@@ -57,15 +56,13 @@ trait HttpMessageDecoder extends LineParser {
         ???
       }
     }
-    */
-    //val builder = StreamBuilder(streamManager)
-    finishDecode(buildFirstLine,  headers, BodyData.Empty)//.Stream(builder))
+    val builder = StreamBuilder(streamManager)
+    finishDecode(buildFirstLine,  headers, BodyData.Stream(builder))
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = 0
     buildTransferEncoding = None
-    //streamManager
-    NoBodyManager
+    streamManager
   }
 
   //returns true if we've finished reading the header
@@ -116,7 +113,6 @@ trait HttpMessageDecoder extends LineParser {
   private var parsingHead = true
 
   final def decode(buffer: ReadBuffer): Unit = {
-
     while (buffer.hasNext) {
       while (parsingHead && buffer.hasNext) {
         parsingHead = !parse(buffer)
@@ -125,7 +121,7 @@ trait HttpMessageDecoder extends LineParser {
         if (currentStreamManager.isDone) {
           parsingHead = true
         } else {
-          currentStreamManager.push(buffer)
+          println(currentStreamManager.push(buffer).toString)
         }
       }
     }
@@ -213,8 +209,10 @@ class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with Stream
   def isDone = bodyRemaining == 0
 
   final override def push(buffer: ReadBuffer): PushResult = {
-    if (bodyRemaining >= buffer.size) {
-      bodyRemaining -= buffer.size
+    val prevBytes = buffer.bytesRemaining
+    val prevBodyRemaining = bodyRemaining
+    val pushResult = if (bodyRemaining >= buffer.bytesRemaining) {
+      bodyRemaining -= buffer.bytesRemaining
       super.push(buffer)
     } else {
       val prevLimit = buffer.buffer.limit()
@@ -224,6 +222,12 @@ class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with Stream
       buffer.buffer.limit(prevLimit)
       res
     }
+    if (buffer.bytesRemaining == prevBytes) {
+      //use it or lose it!
+      println(s"skipping ${prevBodyRemaining - bodyRemaining} buffer bytes")
+      buffer.skip(prevBodyRemaining - bodyRemaining)
+    }
+    pushResult
   }
 
 }
@@ -248,7 +252,7 @@ class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuil
   }
 
   def close(): Unit = {
-
+    complete()
   }
 
   def error(reason: Throwable) = result.fail(reason)

@@ -5,21 +5,16 @@ import util._
 import Method._
 
 import scalene.actor._
+import scalene.routing._
 import org.scalatest._
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
+import BasicConversions._
 
 class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
 
   behavior of "HttpServer"
   
-  val pool = new Pool
-
-  override def afterAll() {
-    pool.shutdown()
-    pool.join
-  }
-
   val settings = HttpServerSettings(
     serverName = "test",
     maxIdleTime = 10.seconds,
@@ -32,16 +27,17 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     )
   )
 
+
+
   it should "receive a request" taggedAs(org.scalatest.Tag("test")) in {
-    implicit val p = pool
-    val server = HttpServer.start(settings, Seq(
-      Get url "/test"  to {
-        Body.plain("foo").ok
-      }
+    implicit val p = new Pool
+    val server = Routing.startDetached(settings, Routes(
+      GET / "test"  as "foo".ok
     ))
     server.blockUntilReady(1000)
     val client = HttpClient.futureClient(BasicClientConfig.default("localhost", 9876))
     client.send(HttpRequest.get("/test")).map{res =>
+      p.shutdown
       assert(res.code == ResponseCode.Ok)
     }
   }

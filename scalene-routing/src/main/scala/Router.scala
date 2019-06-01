@@ -7,8 +7,7 @@ import scalene.corerouting._
 
 object Routing {
 
-  def start(settings: HttpServerSettings, routes: HttpRoute) = {
-    implicit val p = new Pool
+  def startDetached(settings: HttpServerSettings, routes: HttpRoute)(implicit pool: Pool): Server = {
     //val built = routes.toRoute
     HttpServer.start(settings, implicit context => new RequestHandler[HttpRequest, HttpResponse] {
     
@@ -22,8 +21,13 @@ object Routing {
       def handleError(request: Option[HttpRequest], error: Throwable) = HttpResponse(ResponseCode.Error, Body.plain(error.toString))
 
     })
-    p.join
 
+  }
+
+  def start(settings: HttpServerSettings, routes:  HttpRoute): Unit = {
+    implicit val p = new Pool
+    val server = startDetached(settings, routes)
+    p.join
   }
 
 }
