@@ -6,10 +6,11 @@ package scalene
 
 import java.nio.ByteBuffer
 
-trait FastArrayBuilding {
+trait FastArrayBuilding[T] {
 
   def initSize: Int
   def shrinkOnComplete: Boolean
+  def onComplete(buf: ReadBuffer): T
 
   private var build: Array[Byte] = new Array[Byte](initSize)
 
@@ -51,8 +52,8 @@ trait FastArrayBuilding {
     writePos += bytes.length
   }
 
-  final def complete[T](f: ReadBuffer => T): T = {
-    val res = f(ReadBuffer(ByteBuffer.wrap(build, 0, writePos)))
+  final def complete(): T = {
+    val res = onComplete(ReadBuffer(ByteBuffer.wrap(build, 0, writePos)))
     writePos = 0
     if (shrinkOnComplete && build.length > initSize) {
       build = new Array(initSize)
@@ -66,12 +67,13 @@ object BodyCode {
 }
 import BodyCode._
 
-final class LineParser(constructor: ReadBuffer => Boolean, includeNewline: Boolean = false, internalBufferBaseSize: Int = 100)
-    extends FastArrayBuilding {
+trait LineParser extends FastArrayBuilding[Boolean] {
   private val CR = '\r'.toByte
   private val LF = '\n'.toByte
 
-  def initSize         = internalBufferBaseSize
+
+  def includeNewline: Boolean
+
   def shrinkOnComplete = false
 
   var scanByte = CR
@@ -84,7 +86,7 @@ final class LineParser(constructor: ReadBuffer => Boolean, includeNewline: Boole
         write(LF)
       }
       scanByte = CR
-      complete[Boolean](constructor)
+      complete()
     } else {
       throw new Exception("Malformed newline, expected \\r, got '$b'")
     }

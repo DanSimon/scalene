@@ -155,6 +155,8 @@ sealed trait BodyData
 object BodyData {
   case class Static(data: ReadBuffer) extends BodyData
   case class Stream(data: scalene.stream.Stream[ReadBuffer]) extends BodyData
+
+  val Empty = Static(ReadBuffer(new Array[Byte](0)))
 }
 
 trait BodyFormatter[T] {

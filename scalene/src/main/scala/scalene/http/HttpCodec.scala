@@ -19,7 +19,11 @@ object HttpParsing {
 }
 import HttpParsing._
 
-trait HttpMessageDecoder {
+
+trait HttpMessageDecoder extends LineParser {
+
+  def initSize = 100
+  val includeNewline = false
 
   def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData)
 
@@ -31,7 +35,7 @@ trait HttpMessageDecoder {
   private var buildTransferEncoding: Option[TransferEncoding] = None
   private var currentStreamManager: StreamManager = NoBodyManager
 
-
+  @inline
   final def buildMessage(): StreamManager = {
     val headers = new ParsedHeaders(
       headers = buildHeaders,
@@ -50,8 +54,8 @@ trait HttpMessageDecoder {
         ???
       }
     }
-    val builder = StreamBuilder(streamManager)
-    finishDecode(buildFirstLine,  headers, BodyData.Stream(builder))
+    //val builder = StreamBuilder(streamManager)
+    finishDecode(buildFirstLine,  headers, BodyData.Empty)//.Stream(builder))
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = 0
@@ -60,7 +64,8 @@ trait HttpMessageDecoder {
   }
 
   //returns true if we've finished reading the header
-  final def line(buf: ReadBuffer): Boolean = {
+  @inline
+  final def onComplete(buf: ReadBuffer): Boolean = {
     if (buf.size == 0) { //0 size is the blank newline at the end of the head
       currentStreamManager = buildMessage()
       true
@@ -76,6 +81,7 @@ trait HttpMessageDecoder {
     }
   }
 
+  @inline
   final protected def parseSpecialHeader(header: Array[Byte]): Unit = {
     if (buildContentLength == 0 && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
       buildContentLength = trimStringToInt(header, Headers.ContentLength.bytes.length + 2)
@@ -84,7 +90,7 @@ trait HttpMessageDecoder {
     }
   }
 
-
+  @inline
   final private def trimStringToInt(line: Array[Byte], paddedStartIndex: Int): Int = {
     var i = line.length - 1
     var build = 0
@@ -103,13 +109,12 @@ trait HttpMessageDecoder {
 
   //parsing stuff
   private var parsingHead = true
-  final val headParser = new LineParser(line, false, 100)
 
   final def decode(buffer: ReadBuffer): Unit = {
 
     while (buffer.hasNext) {
       while (parsingHead && buffer.hasNext) {
-        parsingHead = !headParser.parse(buffer)
+        parsingHead = !parse(buffer)
       } 
       if (!parsingHead) {
         if (currentStreamManager.isDone) {
@@ -221,12 +226,16 @@ class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with Stream
 object NoBodyManager extends BasicStreamManager(0)
 
 //This collects raw data into an array.  Should not contain chunk headers
-class BodyCollector extends Collector[ReadBuffer, Array[Byte]] with FastArrayBuilding {
+class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuilding[Unit] {
 
   def initSize = 100
   def shrinkOnComplete = true
 
-  val result = new PromiseAsync[Array[Byte]]
+  def onComplete(buf: ReadBuffer): Unit = {
+    result.succeed(buf)
+  }
+
+  val result = new PromiseAsync[ReadBuffer]
 
   def push(buffer: ReadBuffer): PushResult = {
     write(buffer)
