@@ -12,27 +12,83 @@ Take a look at the included [benchmark
 example](benchmark/src/main/scala/Main.scala) to get an idea of what things
 will look like.
 
-## Features
+_**Notice** : This project is just getting started!  Missing lots of features and probably super buggy, maybe you can help with that?_
 
-### Powerful Routing DSL
-
-Scalene not only makes it easy to define complex routes, but also extract and
-manipulate data from requests in a fluid and typesafe way.
-
+Probably best to just start with some examples.  The obligatory hello-world:
 ```scala
-val route = GET / "foo" / ![Int] / ![String] to {case (i,s) =>
-  s"Got an int $i and a string $s".ok
+import scalene.routing._
+import BasicConversions._
+object Main extends App {
+
+	val route = GET / "hello" as "Hello, World!".ok
+
+	val settings = Settings.basic("example", 8080)
+
+	Routing.start(settings, route)
 }
 ```
-```
->curl localhost/foo/3/hello
-(200 OK) Got an int 3 and a string hello
+Here's something a little more complex
+```scala
+//extract data from requests
+val sumRoute = "sum" / ![Int] / ![Int] to {case (a,b) => 
+	(a + b).ok
+}
 
->curl localhost/foo/hello/3
-(400 BAD_REQUEST) expected Integer in path segment, got 'hello'
-```
-Even with only the basics done, the DSL is powerful and easy to use.
+//easily define custom extractors
+val NonZeroInt = ![Int].filter{_ != 0, "must be nonzero"}
+val quotientRoute = "quotient" / ![Int] / NonZeroInt to {case (a,b) =>
+	(a / b).ok
+}
 
+//build trees of routes
+val calcRoutes = "calc" subroutes (sumRoute, quotientRoute)
+
+//open connections to remote systems
+val cache = Memcache.client("memcache-host", 1211)
+
+def slowFib(n) = n match {
+	case 1 | 2 => 1
+	case n => fib(n - 1) + fib(n - 2)
+}
+
+val PositiveInt = ![Int]("num")
+	.filter(_ > 0, "num must be positive")
+
+val fibRoute = GET / "fibonacci" / PositiveInt to {n => 
+	cache.get(s"fib_$n").map{
+		case Some(cached) => cached.ok
+		case None => for {
+			result <- Async(slowFib(n))
+			_ 	   <- memcache.set(s"$fib_n", result.toString)
+		} yield result.ok
+	}
+}
+
+Routing.start(settings, Routes(calcRoutes, fibRoute))
+```
+
+Hopefully that gives you an idea of what this is all about.
+## Features
+
+* **It's really fast!** - Scalene is built from the ground up for low-latency network I/O and follows the design philosophy of _maximizing concurrency while minimizing parallelism_.  When possible, all I/O relative to a single operation is single-threaded.  When writing services you don't have to think about this though, Scalene does all the optimization and thread-management under the hood.
+* **Lightweight** - Currently Scalene only has a dependency on Shapeless.  The core library has no dependencies at all.
+* **Powerful HTTP Routing DSL** : Composable, functional, self-documenting, and easily configurable and extendable.
+
+
+There's a lot of other stuff coming soon
+* Streaming
+* Http2 support
+* More web support like static file streaming
+
+## Getting Started
+Currently to try it out you'll have to clone the repo and build the jars yourself.  You can easily do this with SBT
+```
+sbt publishLocal
+```
+Then in your project just add to your `build.sbt`
+```scala
+libraryDependencies += "io.scalene" %% "scalene" % "0.1.0-SNAPSHOT" 
+```
 ## Current State 
 
 Currently this project is in a very early prototype phase.  I'm still working
@@ -58,11 +114,10 @@ The only real rule I'm enforcing is that no new library dependencies can be adde
 
 ### Origins
 
-Scalene is heavily influenced by Tumblr's Colossus framework, of which I was
-also the creator and lead developer for several years.  While Scalene is not a fork of Colossus, it
-has much in common with some fairly fundamental design changes.
+Scalene is heavily influenced by Tumblr's [Colossus](https://github.com/tumblr/colossus) framework, of which I was also the creator and lead developer.  Scalene though is not a fork of Colossus, but instead more like a re-imagining with some fairly fundamental design changes.  
 
-For the most part Scalene has been written from scratch, but some code is ported from Colossus.  I've included appropriate attribution in those files as well as the NOTICE file.
+The vast majority of Scalene was written from scratch, but some code is copied over from Colossus, which I've detailed in the [NOTICE](NOTICE) file and have included appropriate attribution in the relevant files.
+
 
 ## Benchmarks
 
@@ -84,4 +139,9 @@ Scalene | 661,068
 Rapidoid | 595,252
 Colossus | 357,922
 
+## License
+
+Copyright 2018 Dan Simon
+
+Scalene is published under the MIT license.
 
