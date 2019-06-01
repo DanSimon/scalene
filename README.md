@@ -20,30 +20,18 @@ Scalene not only makes it easy to define complex routes, but also extract and
 manipulate data from requests in a fluid and typesafe way.
 
 ```scala
-
 val route = GET / "foo" / ![Int] / ![String] to {case (i,s) =>
   s"Got an int $i and a string $s".ok
 }
-//>curl localhost/foo/3/hello
-//(200 OK) Got an int 3 and a string hello
-//
-//>curl localhost/foo/hello/3
-//(400 BAD_REQUEST) expected Integer in path segment, got 'hello'
-
-case class Foo(i: Int, s: String)
-
-val route2 = "foo"  subroutes { base =>
-  base + GET / ![Int] to {id => 
-    foodb.get(id).map{f => s"got $f".ok}
-  },
-  base + PUT / (![Int].filter{_ > 0} / ![String] map Foo.tupled) to {foo =>
-    foodb.create(foo).map{f => s"created $f".ok}
-  }
-}
-//>curl -X PUT localhost/4/hello
-//(200 OK) created Foo(4, hello)
-//
 ```
+```
+>curl localhost/foo/3/hello
+(200 OK) Got an int 3 and a string hello
+
+>curl localhost/foo/hello/3
+(400 BAD_REQUEST) expected Integer in path segment, got 'hello'
+```
+Even with only the basics done, the DSL is powerful and easy to use.
 
 ## Current State 
 
@@ -71,21 +59,10 @@ The only real rule I'm enforcing is that no new library dependencies can be adde
 ### Origins
 
 Scalene is heavily influenced by Tumblr's Colossus framework, of which I was
-also the creator and lead developer.  Scalene though is not a fork of Colossus, but instead
-more like a re-imagining with some fairly fundamental design changes.  
+also the creator and lead developer for several years.  While Scalene is not a fork of Colossus, it
+has much in common with some fairly fundamental design changes.
 
-The biggest commonality Scalene shares with Colossus is the general idea of
-maximizing concurrency while minimizing parallelism.  Like Colossus, Scalene
-aims to keep most I/O operations single-threaded, eliminating the overhead of
-context switching, but still asynchronous.  This is not so different from how
-other high-performance frameworks like vert.x and rapidoid behave.
-
-
-Some of the bigger changes are:
-
-* Replaced Akka with built-in specialized actor library.  Colossus only used Akka in a very basic and limited way, so I decided to build a dedicated slimmed-down version containing only what was needed.
-* Fully functional and declarative API.  IMO the biggest issue with Colossus was how it handled exposing worker threads to the user.  Scalene solves this by making the entire API declarative and more-or-less completely hides the complexity from the user.
-* Powerful routing DSL.  A dramatic improvement from Colossus's pattern-matching DSL, Scalene's HTTP routing combinators allow you to easily define complex routes that parse, filter, and extract typed values from http requests.
+For the most part Scalene has been written from scratch, but some code is ported from Colossus.  I've included appropriate attribution in those files as well as the NOTICE file.
 
 ## Benchmarks
 
@@ -95,7 +72,7 @@ Once it's in a more complete state and I start publishing artifacts Scalene
 will be entered into the techempower benchmarks.  For now, here's the results
 of some benchmarks I've run myself:
 
-This benchmark hits the `/plaintext` route.  I used whatever was in master in
+This test hits the `/plaintext` route in the included benchmark example.  I used whatever was in master in
 the Techempower repo at the time with no modifications except frameworks were
 limited to 1 I/O thread.  I used wrk with 75 connections, 2 threads, pipeline
 depth of 16.  Benchmarks were run on my 4-core Intel 6700K 4.0Ghz desktop
@@ -103,21 +80,8 @@ running Windows 10 with WSL.
 
 framework| requests/second
 --- | ---
-Scalene | 741,068
+Scalene | 661,068
 Rapidoid | 595,252
 Colossus | 357,922
 
-When allowing the number of I/O workers to be default (most are 4, some are 8),
-Scalene is basically on-par with Rapidoid, although I have less confidence in
-these numbers since such a large percentage of CPU is used by wrk itself and I
-don't think the servers anywhere close to being maxed out.
-
-framework| requests/second
---- | ---
-Rapidoid | 806,040
-Scalene | 805,039
-Colossus | 753,206
-Netty | 749,442
-Finagle | 191,574
-http4s | 78,971
 
