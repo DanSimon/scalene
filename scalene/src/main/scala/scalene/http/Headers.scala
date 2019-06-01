@@ -77,7 +77,7 @@ class Headers(private[http] val headers: JList[Header]) {
   def toSeq: Seq[Header] = headers.toArray(Array[Header]())
 
   def encode(buffer: WriteBuffer, timeKeeper: TimeKeeper) {
-    val it = headers.iterator
+    val it = headers.listIterator(0)
     while (it.hasNext) {
       buffer.write(it.next.encodedLine(timeKeeper))
     }

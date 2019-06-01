@@ -153,10 +153,10 @@ case class Body(data: BodyData, contentType: Option[ContentType]) {
 
 sealed trait BodyData
 object BodyData {
-  case class Static(data: ReadBuffer) extends BodyData
+  case class Static(data: Array[Byte]) extends BodyData
   case class Stream(data: scalene.stream.Stream[ReadBuffer]) extends BodyData
 
-  val Empty = Static(ReadBuffer(new Array[Byte](0)))
+  val Empty = Static(new Array[Byte](0))
 }
 
 trait BodyFormatter[T] {
@@ -168,9 +168,9 @@ trait BodyFormatter[T] {
 
 object Body {
 
-  def apply(data: Array[Byte], contentType: Option[ContentType]): Body = Body(BodyData.Static(ReadBuffer(data)), contentType)
+  def apply(data: Array[Byte], contentType: Option[ContentType]): Body = Body(BodyData.Static(data), contentType)
 
-  val Empty = Body(BodyData.Static(ReadBuffer(new Array[Byte](0))), None)
+  val Empty = Body(BodyData.Empty, None)
 
   def plain(str: String) = Body(str.getBytes, Some(ContentType.`text/plain`))
   def json(encoded: String) = Body(encoded.getBytes, Some(ContentType.`application/json`))

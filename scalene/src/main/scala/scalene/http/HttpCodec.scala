@@ -35,8 +35,11 @@ trait HttpMessageDecoder extends LineParser {
   private var buildTransferEncoding: Option[TransferEncoding] = None
   private var currentStreamManager: StreamManager = NoBodyManager
 
+  val headers = new Headers(new LinkedList[Header])
+
   @inline
   final def buildMessage(): StreamManager = {
+    /*
     val headers = new ParsedHeaders(
       headers = buildHeaders,
       transferEncodingOpt = buildTransferEncoding,
@@ -54,13 +57,15 @@ trait HttpMessageDecoder extends LineParser {
         ???
       }
     }
+    */
     //val builder = StreamBuilder(streamManager)
     finishDecode(buildFirstLine,  headers, BodyData.Empty)//.Stream(builder))
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = 0
     buildTransferEncoding = None
-    streamManager
+    //streamManager
+    NoBodyManager
   }
 
   //returns true if we've finished reading the header
@@ -137,7 +142,7 @@ trait HttpMessageEncoding[T <: HttpMessage] {
     message.body.data match {
       case BodyData.Static(buf) => {
         buffer.write(ContentLengthPrefix)
-        buffer.write(buf.bytesRemaining)
+        buffer.write(buf.length)
         buffer.write(Newline)
         if (message.body.contentType.isDefined) {
           buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
