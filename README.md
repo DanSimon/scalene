@@ -43,7 +43,18 @@ val quotientRoute = "quotient" / ![Int] / NonZeroInt to {case (a,b) =>
 //build trees of routes
 val calcRoutes = "calc" subroutes (sumRoute, quotientRoute)
 
-//open connections to remote systems
+Routing.start(settings, Routes(calcRoutes))
+```
+```
+>curl localhost:8080/calc/sum/5/6
+(200 OK) 11
+
+>curl localhost:8080/calc/quotient/5/0
+(400 BAD_REQUEST) most be nonzero
+```
+It's also easy to open connections to remote systems
+
+```scala
 val cache = Memcache.client("memcache-host", 1211)
 
 def slowFib(n) = n match {
@@ -64,7 +75,7 @@ val fibRoute = GET / "fibonacci" / PositiveInt to {n =>
 	}
 }
 
-Routing.start(settings, Routes(calcRoutes, fibRoute))
+Routing.start(settings, Routes(fibRoute))
 ```
 
 Hopefully that gives you an idea of what this is all about.
