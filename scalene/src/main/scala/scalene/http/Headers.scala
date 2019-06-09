@@ -117,7 +117,9 @@ object Headers {
   val CookieHeader     = HeaderKey("cookie")
   val Host             = HeaderKey("host")
   val SetCookie        = HeaderKey("set-cookie")
-  val TransferEncoding = HeaderKey("transfer-encoding")
+  val TransferEncoding = new HeaderKey("transfer-encoding") {
+    val Chunked = new StaticHeader(name, "Chunked")
+  }
 
   def apply(hdrs: Header*): Headers = Headers.fromSeq(hdrs)
   def fromString(hdrs: (String, String)*): Headers =

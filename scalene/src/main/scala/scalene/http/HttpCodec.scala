@@ -133,27 +133,32 @@ trait HttpMessageEncoding[T <: HttpMessage] {
   def commonHeaders: Array[Header]
   def timeKeeper: TimeKeeper
 
-  final def encode(message: T, buffer: WriteBuffer) {
+  final def encode(message: T, buffer: WriteBuffer):Option[Stream[Writable]] =  {
     message.encodeFirstLine(buffer)
+    if (message.body.contentType.isDefined) {
+      buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
+    }
+    message.headers.encode(buffer, timeKeeper)
+
+    var i = 0
+    while (i < commonHeaders.length) {
+      buffer.write(commonHeaders(i).encodedLine(timeKeeper))
+      i += 1
+    }
     message.body.data match {
       case BodyData.Static(buf) => {
         buffer.write(ContentLengthPrefix)
         buffer.write(buf.length)
         buffer.write(Newline)
-        if (message.body.contentType.isDefined) {
-          buffer.write(message.body.contentType.get.header.encodedLine(timeKeeper))
-        }
-        message.headers.encode(buffer, timeKeeper)
-
-        var i = 0
-        while (i < commonHeaders.length) {
-          buffer.write(commonHeaders(i).encodedLine(timeKeeper))
-          i += 1
-        }
         buffer.write(Newline)
         buffer.write(buf)
+        None
       }
-      case _ => throw new Exception("Cannot encode Streams yet")
+      case BodyData.Stream(stream) => {
+        buffer.write(Headers.TransferEncoding.Chunked.encodedLine(timeKeeper))
+        buffer.write(Newline)
+        Some(stream.map[ChunkEncoder](ChunkEncoder(_)).chain(new HttpChunkEncodingSink).map{x => x:Writable})
+      }
     }
   }
 }
@@ -258,3 +263,34 @@ class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuil
   def error(reason: Throwable) = result.fail(reason)
 
 }
+
+case class ChunkEncoder(chunkData: ReadBuffer) extends Writable {
+
+  def writeTo(buffer: WriteBuffer): Unit = {
+    buffer.write(chunkData.bytesRemaining.toHexString.getBytes)
+    buffer.write(Newline)
+    chunkData.writeTo(buffer)
+    buffer.write(Newline)
+  }
+
+}
+
+class HttpChunkEncodingSink extends LiveSink[ChunkEncoder] {
+
+  override def push(item: ChunkEncoder): PushResult = super.push(item)
+
+  override def close(): Unit = {
+    super.push(HttpChunkEncodingSink.EndChunk)
+    super.close()
+  }
+
+  override def error(reason: Throwable) = super.error(reason)
+
+}
+
+object HttpChunkEncodingSink {
+
+  val EndChunk = ChunkEncoder(ReadBuffer(new Array[Byte](0)))
+}
+
+

@@ -119,8 +119,19 @@ class DateHeader(initialTime: Long = System.currentTimeMillis) extends Header{
 
 }
 
+case class EncodedHeader(key: HeaderKey, value: Writable) extends Writable {
+  def writeTo(buffer: WriteBuffer): Unit = {
+    buffer.write(key.bytes)
+    buffer.write(Header.KeyValueSeparatorBytes)
+    value.writeTo(buffer)
+    buffer.write(HttpParsing.Newline)
+  }
+}
+
 object Header {
   def apply(key: String, value: String) : Header = new StaticHeader(key, value)
+
+  val KeyValueSeparatorBytes: Array[Byte] = ": ".getBytes()
 }
 
 
@@ -160,7 +171,7 @@ object BodyData {
 }
 
 trait BodyFormatter[T] {
-  def format(item: T): Array[Byte]
+  def format(item: T): BodyData
   def contentType: Option[ContentType]
 
   def apply(item: T): Body = Body(format(item), contentType)
