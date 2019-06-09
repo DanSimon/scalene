@@ -10,14 +10,21 @@ class LiveSignal extends Signal {
   private var signaled = false
   def onSignaled(f: => Unit): Unit = if (signaled) {
     f
+    signaled = false
   } else {
     event = Some(() => f)
   }
 
   def signal(): Unit = {
-    signaled = true
-    event.foreach(f => f())
-    event = None
+    event match {
+      case  Some(f) =>  { 
+        f()
+        event = None
+      }
+      case None => {
+        signaled = true
+      }
+    }
   }
 
   def reset(): Unit = {
@@ -26,55 +33,36 @@ class LiveSignal extends Signal {
   }
 }
 
-sealed trait PushResult
+sealed trait PartialPushResult
+object PartialPushResult {
+  //the item was not pushed due to backpressure.
+  case class WaitRejected(signal: Signal) extends PartialPushResult
+}
+
+trait PartialSink[T] {
+  def attemptPush(item: T): PartialPushResult
+}
+sealed trait PushResult extends PartialPushResult
 object PushResult {
   case object Ok extends PushResult
 
-  //the item was pushed, but backpressure has been signaled
+  //the item was pushed, but backpressure has been signaled, subsequent items may cause an error
   case class WaitAccepted(signal: Signal) extends PushResult
-
-  //the item was not pushed due to backpressure.
-  case class WaitRejected(signal: Signal) extends PushResult
 
   case class Error(reason: Throwable) extends PushResult
 }
 
 trait Receiver[T] {
   def push(item: T): PushResult
-  def pushPeek(): PushResult
-
 }
 
-/*
-trait BackPressureHandler[T] {
-  def receiver: Receiver[T]
-  def onPause(): Unit
-  def onResume(): Unit
-  def onError(reason: Throwable): Unit
 
-  def push(item: T): Unit = receiver.push(item) match {
-    case PushResult.Ok => ()
-    case PushResult.Wait(signal) => {
-      onPause()
-      signal.onSignaled{
-        onResume()
-      }
-    }
-    case PushResult.Error(reason) => {
-      onError(reason)
-    }
-  }
-
-  def pushPeek
-
-}
-*/
-
-
-trait Sink[T] extends Receiver[T] {
+trait Sink[T] extends Receiver[T]{
   //close the stream, triggering the result
   def close(): Unit  
   def error(reason: Throwable): Unit
+
+  //def attemptPush(item: T): PartialPushResult = PartialPushResult.Push(push(item))
 }
 
 trait Collector[T, E] extends Sink[T]{
@@ -90,7 +78,7 @@ object Sink {
   }
 }
 
-trait BufferedSink[T] extends Sink[T] {
+trait BufferedSink[T] extends Sink[T] with PartialSink[T] {
 
   private val buffer = new java.util.LinkedList[T]
   private val externalSignal = new LiveSignal
@@ -99,35 +87,34 @@ trait BufferedSink[T] extends Sink[T] {
 
   override def push(item: T) = if (buffer.size > 0) {
     buffer.add(item)
+    PushResult.WaitAccepted(externalSignal)
   } else {
-    super.push(item) match {
-      case PushResult.Ok => PushResult.Ok
-      case PushResult.WaitAccepted(_) => {
-        PushResult.WaitAccepted(externalSignal)
-      }
-      case PushResult.WaitRejected(signal) => {
+    val res = attemptPush(item) 
+    //println(s"buffered attempt push got $res")
+    res match {
+      case PartialPushResult.WaitRejected(signal) => {
         buffer.add(item)
-        signal.onSignal{
+        signal.onSignaled{
           drainBuffer()
         }
-        PushResult.Ok
+        PushResult.WaitAccepted(externalSignal)
       }
-      case PushResult.Error(err) => PushResult.Error(err)
+      case other: PushResult => other
     }
   }
 
   private def drainBuffer() {
     var continue = true
     while (continue && buffer.size > 0) {
-      super.push(item) match {
+      attemptPush(buffer.remove()) match {
         case PushResult.Ok => {}
         case PushResult.WaitAccepted(signal) => {
-          signal.onSignal {
+          signal.onSignaled {
             drainBuffer()
           }
           continue = false
         }
-        case PushResult.WaitRejected(_) => {
+        case PartialPushResult.WaitRejected(_) => {
           //this should not happen
           throw new Exception("rejected push from buffer drain")
         }
@@ -136,11 +123,11 @@ trait BufferedSink[T] extends Sink[T] {
         }
       }
     }
+    if (continue && buffer.size == 0) {
+      externalSignal.signal()
+    }
   }       
 
-
-  override def close() = super.close()
-  override def error(reason: Throwable) = super.error(reason)
 }
 
 
@@ -162,7 +149,7 @@ class LiveSink[T] extends Sink[T] with LiveSource[T]{
 
   def push(item: T) = downstream
     .map{_.push(item)}
-    .getOrElse(PushResult.Wait(setSignal))
+    .getOrElse(PushResult.Error(new Exception("Attempt to push to incomplete sink")))
 
   def close() = downstream.foreach{_.close()}
 
@@ -245,9 +232,7 @@ object Stream {
       def continueDrain(): Unit = {
         var continue = true
         while (continue && iter.hasNext) {
-          println("iter pushing")
           val res = downstream.get.push(iter.next)
-          println(s"res $res")
           res match {
             case PushResult.Ok => {}
             case PushResult.WaitAccepted(signal) => {
@@ -255,8 +240,6 @@ object Stream {
                 continueDrain()
               }
               continue = false
-            }
-            case PushResult.WaitRejected(signal) => {
             }
             case PushResult.Error(err) => {
               continue = false

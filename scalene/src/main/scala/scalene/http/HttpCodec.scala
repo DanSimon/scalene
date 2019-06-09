@@ -121,7 +121,7 @@ trait HttpMessageDecoder extends LineParser {
         if (currentStreamManager.isDone) {
           parsingHead = true
         } else {
-          println(currentStreamManager.push(buffer).toString)
+          currentStreamManager.push(buffer)
         }
       }
     }

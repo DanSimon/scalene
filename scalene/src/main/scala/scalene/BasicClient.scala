@@ -124,9 +124,10 @@ class BasicClient[Request,Response](
 
 import scalene.stream._
 
-abstract class StreamOutputSink extends Sink[Writable] {
+abstract class StreamOutputSink extends PartialSink[Writable] {
 
   private var buffer: Option[WriteBuffer] = None
+  
 
   private val signal = new LiveSignal
 
@@ -146,17 +147,17 @@ abstract class StreamOutputSink extends Sink[Writable] {
     _buffer.isOverflowed
   }
 
-  def push(writable: Writable): PushResult = buffer match {
+  def attemptPush(writable: Writable): PartialPushResult = buffer match {
     case Some(buf) => {
       writable.writeTo(buf)
       if (buf.isOverflowed) {
-        PushResult.Wait(signal)
+        PushResult.WaitAccepted(signal)
       } else {
         PushResult.Ok
       }
     }
     case None => {
-      PushResult.Wait(signal)
+      PartialPushResult.WaitRejected(signal)
     }
   }
 
@@ -176,7 +177,8 @@ trait OutputManager[T] {
       encoder.encode(nextOutputItem(), buffer) match {
         case None => {}
         case Some(streamBuilder) => {
-          val sink = new StreamOutputSink {
+          val sink = new StreamOutputSink with BufferedSink[Writable] {
+
             def close(): Unit = {
               liveOutputStream = None
             }

@@ -17,7 +17,9 @@ object Main extends App {
     _ + GET + PositiveInt to {id => s"give me foo $id".ok}
   )
 
-  val streamRoute = GET / "stream" as Stream.fromIter(List("a", "b" , "c").toIterator).ok
+  val streamRoute = GET / "stream" to {_ =>
+    Stream.fromIter(List("a", "b" , "c").toIterator).ok
+  }
 
   println(fooRoutes.document)
 
