@@ -256,11 +256,11 @@ class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuil
     PushResult.Ok
   }
 
-  def close(): Unit = {
+  override def onClose(): Unit = {
     complete()
   }
 
-  def error(reason: Throwable) = result.fail(reason)
+  override def onError(reason: Throwable) = result.fail(reason)
 
 }
 

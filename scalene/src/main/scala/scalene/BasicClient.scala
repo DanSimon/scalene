@@ -179,10 +179,10 @@ trait OutputManager[T] {
         case Some(streamBuilder) => {
           val sink = new StreamOutputSink with BufferedSink[Writable] {
 
-            def close(): Unit = {
+            override def onClose(): Unit = {
               liveOutputStream = None
             }
-            def error(reason: Throwable) : Unit = {
+            override def onError(reason: Throwable) : Unit = {
               onOutputError(reason)
             }
           }            

@@ -3,6 +3,8 @@ package stream
 
 trait Signal {
   def onSignaled(f: => Unit): Unit
+  def isSignaled: Boolean
+  def isFilled : Boolean
 }
 
 class LiveSignal extends Signal {
@@ -31,6 +33,9 @@ class LiveSignal extends Signal {
     signaled = false
     event = None
   }
+
+  def isSignaled = signaled
+  def isFilled = event.isDefined
 }
 
 sealed trait PartialPushResult
@@ -56,14 +61,18 @@ trait Receiver[T] {
   def push(item: T): PushResult
 }
 
+/*
+ * Trait for all stream-related methods that aren't directly about streaming items
+ */
+trait Transport {
+  def close(): Unit = onClose()
+  def error(reason: Throwable): Unit = onError(reason)
 
-trait Sink[T] extends Receiver[T]{
-  //close the stream, triggering the result
-  def close(): Unit  
-  def error(reason: Throwable): Unit
-
-  //def attemptPush(item: T): PartialPushResult = PartialPushResult.Push(push(item))
+  protected def onClose(): Unit
+  protected def onError(reason: Throwable): Unit
 }
+
+trait Sink[T] extends Receiver[T] with Transport
 
 trait Collector[T, E] extends Sink[T]{
   def result: Async[E]
@@ -73,8 +82,8 @@ object Sink {
 
   def blackHole[T]: Sink[T] = new Sink[T] {
     def push(item: T) = PushResult.Ok
-    def close() = {}
-    def error(reason: Throwable) = {}
+    def onClose() = {}
+    def onError(reason: Throwable) = {}
   }
 }
 
@@ -82,10 +91,13 @@ trait BufferedSink[T] extends Sink[T] with PartialSink[T] {
 
   private val buffer = new java.util.LinkedList[T]
   private val externalSignal = new LiveSignal
+  private var closed = false
 
   def maxBufferSize: Int = 1000
 
-  override def push(item: T) = if (buffer.size > 0) {
+  override def push(item: T) = if (closed) {
+    PushResult.Error(new Exception("cannot  push to closed sink"))
+  } else if (buffer.size > 0) {
     buffer.add(item)
     PushResult.WaitAccepted(externalSignal)
   } else {
@@ -100,6 +112,13 @@ trait BufferedSink[T] extends Sink[T] with PartialSink[T] {
         PushResult.WaitAccepted(externalSignal)
       }
       case other: PushResult => other
+    }
+  }
+
+  abstract override def close(): Unit = if (!closed) {
+    closed = true
+    if (buffer.size == 0) {
+      super.close()
     }
   }
 
@@ -124,7 +143,11 @@ trait BufferedSink[T] extends Sink[T] with PartialSink[T] {
       }
     }
     if (continue && buffer.size == 0) {
-      externalSignal.signal()
+      if (closed) {
+        super.close()
+      } else {
+        externalSignal.signal()
+      }
     }
   }       
 
@@ -151,18 +174,18 @@ class LiveSink[T] extends Sink[T] with LiveSource[T]{
     .map{_.push(item)}
     .getOrElse(PushResult.Error(new Exception("Attempt to push to incomplete sink")))
 
-  def close() = downstream.foreach{_.close()}
+  override def onClose() = downstream.foreach{_.close()}
 
-  def error(reason: Throwable) = downstream.foreach{_.error(reason)}
+  override def onError(reason: Throwable) = downstream.foreach{_.error(reason)}
 }
 
 class MappedSink[A,B](mapper: A => B, downstream: Sink[B]) extends Sink[A] {
 
   def push(item: A) = downstream.push(mapper(item))
 
-  def close() = downstream.close()
+  override def onClose() = downstream.close()
 
-  def error(reason: Throwable): Unit = downstream.error(reason)
+  override def onError(reason: Throwable): Unit = downstream.error(reason)
 }
 
 case class InitialStreamBuilder[I, T](initial: LiveSource[I], mapper: I => T) extends Stream[T] {
