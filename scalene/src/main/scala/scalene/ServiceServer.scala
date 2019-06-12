@@ -9,7 +9,7 @@ class ServiceServer[I,O](
   codecFactory: Codec.Factory[I,O],
   requestHandler: RequestHandler[I,O],
   val idleTimeout: Duration
-) extends ServerConnectionHandler {
+) extends ServerConnectionHandler with OutputManager[O]{
 
   private val codec = codecFactory(processRequest)
 
@@ -33,23 +33,18 @@ class ServiceServer[I,O](
     codec.decode(buffer)
   }
 
-  final def onWriteData(buffer: WriteBuffer) = {
-    while (!buffer.isOverflowed && pendingRequests.size > 0 && pendingRequests.peek.result.isDefined) {
-      pendingRequests.remove.result.get match {
-        case Success(response) => codec.encode(response, buffer)
-        case Failure(err) => codec.encode(requestHandler.handleError(None, err), buffer)
-      }
-    }
-    if (pendingRequests.size > 0) {
-      if (pendingRequests.peek.result.isEmpty) {
-        pendingRequests.peek.onComplete{_ => _handle.foreach{_.requestWrite()}}
-        false
-      } else {
-        true
-      }
-    } else {
-      false
-    }
+
+  def encoder = codec
+
+  protected def hasNextOutputItem(): Boolean = {
+    pendingRequests.size > 0 && pendingRequests.peek.result.isDefined
+  }
+  protected def nextOutputItem(): O = {
+    pendingRequests.remove.result.get.get
+  }
+
+  protected def onOutputError(reason: Throwable): Unit = {
+    _handle.foreach{_.disconnect()}
   }
 
   def onConnected(handle: ConnectionHandle) {

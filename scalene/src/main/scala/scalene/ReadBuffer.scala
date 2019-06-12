@@ -8,7 +8,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 
 
-case class ReadBuffer(buffer: ByteBuffer) extends AnyVal {
+case class ReadBuffer(buffer: ByteBuffer) extends Writable {
 
   def next(): Byte = buffer.get
 
@@ -34,6 +34,15 @@ case class ReadBuffer(buffer: ByteBuffer) extends AnyVal {
     buffer.get(target, offset, length)
   }
 
+  def peekCopy(): Array[Byte] = {
+    buffer.mark()
+    val data = readAll
+    buffer.reset()
+    data
+  }
+
+  def peekCopyString = new String(peekCopy())
+
   def skip(n: Int) = {
     buffer.position(buffer.position() + n)
   }
@@ -44,6 +53,10 @@ case class ReadBuffer(buffer: ByteBuffer) extends AnyVal {
 
   def writeTo(channel: SocketChannel) = {
     channel.write(buffer)
+  }
+
+  def writeTo(buffer: WriteBuffer) : Unit = {
+    buffer.write(this)
   }
 
   def hasNext = buffer.hasRemaining

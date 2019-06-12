@@ -11,7 +11,7 @@ trait HeaderExtractor[T] {
 object HeaderExtractor {
   implicit def single[T](implicit formatter: Formatter[T]) = new HeaderExtractor[T] {
     def extract(request: HttpRequest, key: String): Result[T] = {
-      request.headerValue(key) match {
+      request.headers.firstValue(key) match {
         case Some(value) => formatter.format(value)
         case None => Left(ParseError.badRequest(s"missing required parameter $key"))
       }
@@ -20,7 +20,7 @@ object HeaderExtractor {
 
   implicit def seq[T](implicit formatter: Formatter[T]) = new HeaderExtractor[Seq[T]] {
     def extract(request: HttpRequest, key: String): Result[Seq[T]] = {
-      request.headerValues(key).foldLeft[Result[List[T]]](Right(Nil)){case (build, next) => for {
+      request.headers.allValues(key).foldLeft[Result[List[T]]](Right(Nil)){case (build, next) => for {
         buildSeq  <- build
         nextRes   <- formatter.format(next)
       } yield nextRes :: buildSeq }
@@ -29,7 +29,7 @@ object HeaderExtractor {
 
   implicit def option[T](implicit formatter: Formatter[T]) = new HeaderExtractor[Option[T]] {
     def extract(request: HttpRequest, key: String): Result[Option[T]] = {
-      request.headerValue(key) match {
+      request.headers.firstValue(key) match {
         case Some(p) => formatter.format(p).map{Some(_)}
         case None => Right(None)
       }

@@ -6,10 +6,11 @@ package scalene
 
 import java.nio.ByteBuffer
 
-trait FastArrayBuilding {
+trait FastArrayBuilding[T] {
 
   def initSize: Int
   def shrinkOnComplete: Boolean
+  def onComplete(buf: ReadBuffer): T
 
   private var build: Array[Byte] = new Array[Byte](initSize)
 
@@ -39,6 +40,10 @@ trait FastArrayBuilding {
     writePos += bytes
   }
 
+  final def write(buffer: ReadBuffer) {
+    write(buffer, buffer.bytesRemaining)
+  }
+
   final def write(bytes: Array[Byte]) {
     while (writePos + bytes.length > build.length) {
       grow()
@@ -47,8 +52,8 @@ trait FastArrayBuilding {
     writePos += bytes.length
   }
 
-  final def complete[T](f: ReadBuffer => T): T = {
-    val res = f(ReadBuffer(ByteBuffer.wrap(build, 0, writePos)))
+  final def complete(): T = {
+    val res = onComplete(ReadBuffer(ByteBuffer.wrap(build, 0, writePos)))
     writePos = 0
     if (shrinkOnComplete && build.length > initSize) {
       build = new Array(initSize)
@@ -62,17 +67,18 @@ object BodyCode {
 }
 import BodyCode._
 
-final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean = false, internalBufferBaseSize: Int = 100)
-    extends FastArrayBuilding {
+trait LineParser extends FastArrayBuilding[Boolean] {
   private val CR = '\r'.toByte
   private val LF = '\n'.toByte
 
-  def initSize         = internalBufferBaseSize
+
+  def includeNewline: Boolean
+
   def shrinkOnComplete = false
 
   var scanByte = CR
 
-  private final def checkLineFeed(buffer: ReadBuffer): Int = {
+  private final def checkLineFeed(buffer: ReadBuffer): Boolean = {
     val b = buffer.buffer.get
     if (b == LF) {
       if (includeNewline) {
@@ -80,23 +86,23 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
         write(LF)
       }
       scanByte = CR
-      complete[Int](constructor)
+      complete()
     } else {
       throw new Exception("Malformed newline, expected \\r, got '$b'")
     }
   }
 
   //TODO : should return something instead of Int to indicate chunked body or body until EOS
-  final def parse(buffer: ReadBuffer): Int = {
-    var bodySize = HEAD_CONTINUE
+  final def parse(buffer: ReadBuffer): Boolean = {
+    var done = false
     if (scanByte == LF && ! buffer.isEmpty) {
-      bodySize = checkLineFeed(buffer)
+      done = checkLineFeed(buffer)
     }
-    while (!buffer.isEmpty && bodySize == BodyCode.HEAD_CONTINUE) {
+    while (!buffer.isEmpty && !done) {
       val byte = buffer.next
       if (byte == CR) {
         if (!buffer.isEmpty) {
-          bodySize = checkLineFeed(buffer)
+          done = checkLineFeed(buffer)
         } else {
           //this would only happen if the \n is in the next packet/buffer,
           //very rare but it can happen, but we can't complete until we've read it in
@@ -106,7 +112,7 @@ final class LineParser(constructor: ReadBuffer => Int, includeNewline: Boolean =
         write(byte)
       }
     }
-    bodySize
+    done
   }
 
 }

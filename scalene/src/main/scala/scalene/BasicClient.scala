@@ -44,6 +44,7 @@ class BasicClient[Request,Response](
   private val inFlightRequests = new LinkedList[PendingRequest]
   var _handle: Option[ConnectionHandle] = None
 
+
   def send(request: Request): Async[Response] = {
     def enqueue(): Async[Response] = {
       if (pendingRequests.size < config.maxPendingRequests) {
@@ -86,6 +87,12 @@ class BasicClient[Request,Response](
     codec.decode(buffer)
   }
 
+  private def resetConnection(): Unit = {
+    //kill the connection
+    _handle.foreach{_.disconnect()}
+  }
+
+  
   final def onWriteData(buffer: WriteBuffer) = {
     while (!buffer.isOverflowed && pendingRequests.size > 0  && inFlightRequests.size <= config.maxInFlightRequests) {
       val p = pendingRequests.remove
@@ -114,3 +121,103 @@ class BasicClient[Request,Response](
   }
 
 }
+
+import scalene.stream._
+
+abstract class StreamOutputSink extends PartialSink[Writable] {
+
+  private var buffer: Option[WriteBuffer] = None
+  
+
+  private val signal = new LiveSignal
+
+  //these are implemented in the client when it extends as a nested class
+  //def close(): Unit = {}
+  //def error(reason: Throwable): Unit = {}
+
+  //return true if the upstream has more to write
+  def visit(_buffer: WriteBuffer): Boolean = {
+    buffer = Some(_buffer)
+    signal.signal()
+    buffer = None
+    //note - this may not be a surefire way to tell if there is more to write,
+    //since the last push on the stream may overflow the buffer, but that
+    //shouldn't be a big deal since in that case close() would be called
+    //immediately after
+    _buffer.isOverflowed
+  }
+
+  def attemptPush(writable: Writable): PartialPushResult = buffer match {
+    case Some(buf) => {
+      writable.writeTo(buf)
+      if (buf.isOverflowed) {
+        PushResult.WaitAccepted(signal)
+      } else {
+        PushResult.Ok
+      }
+    }
+    case None => {
+      PartialPushResult.WaitRejected(signal)
+    }
+  }
+
+}
+
+trait OutputManager[T] {
+
+  private var liveOutputStream: Option[StreamOutputSink] = None
+
+  protected def hasNextOutputItem(): Boolean
+  protected def nextOutputItem(): T
+  protected def encoder: MessageEncoder[T]
+  protected def onOutputError(reason: Throwable): Unit
+
+  final def onWriteData(buffer: WriteBuffer) = {
+    while (liveOutputStream.isEmpty && !buffer.isOverflowed && hasNextOutputItem()) {
+      encoder.encode(nextOutputItem(), buffer) match {
+        case None => {}
+        case Some(streamBuilder) => {
+          val sink = new StreamOutputSink with BufferedSink[Writable] {
+
+            override def onClose(): Unit = {
+              liveOutputStream = None
+            }
+            override def onError(reason: Throwable) : Unit = {
+              onOutputError(reason)
+            }
+          }            
+          streamBuilder.complete(sink)
+          liveOutputStream = Some(sink)
+        }
+      }
+    }
+    //return true if we detect there is more immediately available to write
+    liveOutputStream match {
+      case Some(sink) => {
+        sink.visit(buffer)
+      }
+      case None => hasNextOutputItem()
+    }
+  }
+
+
+}
+
+
+/*
+
+class DataOutputSink(handle: ConnectionHandle, maxBufferSize: Int) extends Sink[RawData] {
+
+  private var buffer: Option[WriteBuffer] = None
+
+  def visit(_buffer: WriteBuffer): Unit = {
+    buffer = Some(_buffer)
+    signal.signal()
+    buffer = None
+  }
+
+  def push(data: RawData): PushResult = 
+
+}
+
+*/

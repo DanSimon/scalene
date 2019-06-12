@@ -13,12 +13,12 @@ val baseSettings = Seq(
 
 lazy val root = (project in file("."))
   .settings(baseSettings)
-  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples)
+  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples, `scalene-tests`)
 
 lazy val `scalene-actor` = project
   .settings(baseSettings)
 
-lazy val scalene = project
+lazy val scalene: Project = project
   .dependsOn(`scalene-actor`)
   .settings(baseSettings)
 
@@ -28,9 +28,13 @@ lazy val scaleneRoutingSettings = baseSettings ++ Seq(
   )
 )
 
-lazy val `scalene-routing` = project
+lazy val `scalene-routing`: Project = project
   .dependsOn(scalene)
   .settings(scaleneRoutingSettings)
+
+lazy val `scalene-tests` = project
+  .dependsOn(scalene, `scalene-routing`)
+  .settings(baseSettings)
 
 val benchmarkSettings = baseSettings ++ Seq(
   libraryDependencies ++= Seq(

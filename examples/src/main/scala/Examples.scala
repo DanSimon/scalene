@@ -1,6 +1,7 @@
 package examples
 
 import scalene.routing._
+import scalene.stream._
 import BasicConversions._
 
 object Main extends App {
@@ -16,10 +17,15 @@ object Main extends App {
     _ + GET + PositiveInt to {id => s"give me foo $id".ok}
   )
 
+  val streamRoute = GET / "stream" to {_ =>
+    Stream.fromIter(List("a", "b" , "c").toIterator).ok
+  }
+
   println(fooRoutes.document)
 
   val routes = Routes(
     fooRoutes,
+    streamRoute,
     GET / "sum" / ![Int] / ![Int] to {case (a,b) => (a + b).ok},
     GET / "quotient" / ![Int] / 
       ![Int].filter(_ != 0, "dividend can't be zero") to {case (a,b) => (a / b).ok}

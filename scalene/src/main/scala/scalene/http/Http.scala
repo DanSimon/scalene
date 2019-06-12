@@ -6,6 +6,7 @@ import java.util.{Arrays, Date, LinkedList, Locale, TimeZone}
 
 import scalene.actor.Pool
 import scalene._
+import scalene.stream._
 import scalene.util._
 
 import HttpParsing._
@@ -118,41 +119,28 @@ class DateHeader(initialTime: Long = System.currentTimeMillis) extends Header{
 
 }
 
+case class EncodedHeader(key: HeaderKey, value: Writable) extends Writable {
+  def writeTo(buffer: WriteBuffer): Unit = {
+    buffer.write(key.bytes)
+    buffer.write(Header.KeyValueSeparatorBytes)
+    value.writeTo(buffer)
+    buffer.write(HttpParsing.Newline)
+  }
+}
+
 object Header {
   def apply(key: String, value: String) : Header = new StaticHeader(key, value)
+
+  val KeyValueSeparatorBytes: Array[Byte] = ": ".getBytes()
 }
 
 
 trait HttpMessage {
-  def headers: LinkedList[Header]
+  def headers: Headers
   def body: Body
   def version: HttpVersion
 
   def encodeFirstLine(buf: WriteBuffer): Unit
-
-  def headerValue(key: String): Option[String] = {
-    val it = headers.iterator
-    var result: Option[String] = None
-    while (it.hasNext && result.isEmpty) {
-      val next = it.next
-      if (next.key == key) {
-        result = Some(next.value)
-      }
-    }
-    result
-  }
-
-  def headerValues(key: String): Array[String] = {
-    val builder = new LinkedList[String]
-    val it = headers.iterator
-    while (it.hasNext) {
-      val next = it.next
-      if (next.key == key) {
-        builder.add(next.value)
-      }
-    }
-    builder.toArray.asInstanceOf[Array[String]]
-  }
 
 }
 
@@ -170,12 +158,27 @@ object ContentType {
   val `application/json` = ContentType("application/json")
 }
 
-case class Body(data: Array[Byte], contentType: Option[ContentType]) {
+case class Body(data: BodyData, contentType: Option[ContentType]) {
 
 }
 
+sealed trait BodyData {
+  def collect(): Deferred[ReadBuffer]
+}
+
+object BodyData {
+  case class Static(data: Array[Byte]) extends BodyData {
+    def collect(): Deferred[ReadBuffer] = Deferred.successful(ReadBuffer(data))
+  }
+  case class Stream(data: scalene.stream.Stream[ReadBuffer]) extends BodyData {
+    def collect(): Deferred[ReadBuffer] = data.complete(new BodyCollector)
+  }
+
+  val Empty = Static(new Array[Byte](0))
+}
+
 trait BodyFormatter[T] {
-  def format(item: T): Array[Byte]
+  def format(item: T): BodyData
   def contentType: Option[ContentType]
 
   def apply(item: T): Body = Body(format(item), contentType)
@@ -183,7 +186,9 @@ trait BodyFormatter[T] {
 
 object Body {
 
-  val Empty = Body(Nil.toArray, None)
+  def apply(data: Array[Byte], contentType: Option[ContentType]): Body = Body(BodyData.Static(data), contentType)
+
+  val Empty = Body(BodyData.Empty, None)
 
   def plain(str: String) = Body(str.getBytes, Some(ContentType.`text/plain`))
   def json(encoded: String) = Body(encoded.getBytes, Some(ContentType.`application/json`))

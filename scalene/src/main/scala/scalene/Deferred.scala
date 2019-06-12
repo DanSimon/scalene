@@ -2,6 +2,10 @@ package scalene
 
 import java.util.concurrent.atomic.AtomicLong
 import scala.util.{Failure, Success, Try}
+import scala.concurrent.{Future, Promise}
+
+import scalene.actor._
+import util._
 
 trait GenericUniqueKey
 
@@ -13,11 +17,11 @@ object UniqueKey {
   def generate[T]: UniqueKey[T] = UniqueKey[T](next.incrementAndGet())
 }
 
-class Localized[T](key: UniqueKey[T], generator: AsyncContext => T) {
+class LocalizedImpl[T](key: UniqueKey[T], generator: AsyncContext => T) {
   def apply()(implicit context: AsyncContext) : T = context.localized(key)(generator(context))
 }
 object localized {
-  def apply[T](generator: AsyncContext => T) = new Localized(UniqueKey.generate[T], generator)
+  def apply[T](generator: AsyncContext => T) = new LocalizedImpl(UniqueKey.generate[T], generator)
 }
 
 
@@ -73,3 +77,37 @@ class DeferredClient[Request, Response](
   }  
 
 }
+
+class DeferredExecutor(implicit p: Pool) {
+  implicit val dispatcher = p.createDispatcher
+  private val timeKeeper = new RealTimeKeeper
+
+  private val receiver = SimpleReceiver[EventLoopEvent]{e => ()}
+
+  private val eventLoop = new EventLoop(timeKeeper, receiver)
+
+  trait GenericExecutor {
+    def execute()
+  }
+  
+  case class Executor[T](deferred: Deferred[T], promise: Promise[T]) extends GenericExecutor {
+    def execute(): Unit = {
+      deferred
+        .resolve(eventLoop.environment)
+        .onComplete{t => promise.complete(t)}
+
+    }
+  }
+
+  private val sender = SimpleReceiver[GenericExecutor]{ex =>
+    ex.execute()
+  }
+
+  def apply[T](deferred: Deferred[T]): Future[T] = {
+    val p = Promise[T]()
+    sender.send(Executor(deferred, p))
+    p.future
+  }
+}
+
+

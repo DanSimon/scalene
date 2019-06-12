@@ -2,6 +2,7 @@ package scalene
 
 import scalene.http.{Method => HttpMethod, _}
 import scalene.corerouting._
+import scalene.stream._
 
 package object routing extends RoutingSuite[RequestContext, HttpResponse]
 with PathParsing with ResponseBuilding {
@@ -70,7 +71,7 @@ with PathParsing with ResponseBuilding {
 
   object BasicConversions {
     trait PlainTextBody[T] extends BodyFormatter[T] {
-      def format(obj: T) = obj.toString.getBytes()
+      def format(obj: T) = BodyData.Static(obj.toString.getBytes())
       def contentType = Some(ContentType.`text/plain`)
     }
 
@@ -79,6 +80,11 @@ with PathParsing with ResponseBuilding {
     implicit object FloatToBody extends PlainTextBody[Float] 
     implicit object DoubleToBody extends PlainTextBody[Double] 
     implicit object BooleanToBody extends PlainTextBody[Boolean] 
+    implicit def streamBodyFormatter[T](implicit b: PlainTextBody[T]) = new BodyFormatter[Stream[T]] {
+      def format(stream: Stream[T]) = BodyData.Stream(stream.map{item => ReadBuffer(b.format(item).data)})
+      def contentType = Some(ContentType.`text/plain`)
+    }
+
   }
 
 }
