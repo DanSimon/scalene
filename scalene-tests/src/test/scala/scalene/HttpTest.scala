@@ -27,18 +27,62 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     )
   )
 
+  def withPool[T](f: Pool => Future[T]): Future[T] = {
+    val p = new Pool
+    val future = f(p)
+    future.onComplete{_ => p.shutdown}
+    future
+  }
 
-
-  it should "receive a request" taggedAs(org.scalatest.Tag("test")) in {
-    implicit val p = new Pool
-    val server = Routing.startDetached(settings, Routes(
-      GET / "test"  as "foo".ok
-    ))
+  def withRoutes[T](routes: HttpRoute)(f: FutureClient[HttpRequest, HttpResponse] => Future[T]): Future[T] = withPool{implicit p => 
+    val server = Routing.startDetached(settings, routes)
     server.blockUntilReady(1000)
     val client = HttpClient.futureClient(BasicClientConfig.default("localhost", 9876))
-    client.send(HttpRequest.get("/test")).map{res =>
-      p.shutdown
-      assert(res.code == ResponseCode.Ok)
+    f(client)
+  }
+
+  it should "receive a request" taggedAs(org.scalatest.Tag("test")) in  { 
+    val routes = Routes(
+      GET / "test"  as "foo".ok
+    )
+    withRoutes(routes){client => 
+      client.send(HttpRequest.get("/test")).map{res =>
+        assert(res.code == ResponseCode.Ok)
+      }
+    }
+  }
+
+  it should "send a stream response" in {
+    val routes = Routes(
+      GET / "test" to {_ => scalene.stream.Stream.fromIter(List("a", "b", "c").toIterator).ok}
+    )
+    withRoutes(routes){client =>
+      client.send(HttpRequest.get("/test")).map{res =>
+        assert(res.code == ResponseCode.Ok)
+      }
+    }
+  }
+
+  it should "receive a streamed body" in {
+    val routes = Routes(
+      GET / "test" to {_ => scalene.stream.Stream.fromIter(List("a", "b", "c").toIterator).ok}
+    )
+    withPool{implicit p => 
+      val server = Routing.startDetached(settings, routes)
+      server.blockUntilReady(1000)
+      val client = HttpClient.deferredClient(BasicClientConfig.default("localhost", 9876))
+      val executor = new DeferredExecutor
+      executor(
+        client
+          .send(HttpRequest.get("/test"))
+          .flatMap{res =>
+            assert(res.code == ResponseCode.Ok)
+            res.body.data.collect().map{buf => 
+              println("here")
+              assert(buf.readString == "abc")
+            }
+          }
+      )
     }
   }
 

@@ -53,11 +53,13 @@ trait HttpMessageDecoder extends LineParser {
         new BasicStreamManager(buildContentLength)
       }
       case Some(TransferEncoding.Chunked) => {
-        ???
+        new ChunkedStreamManager
       }
     }
     val builder = StreamBuilder(streamManager)
     finishDecode(buildFirstLine,  headers, BodyData.Stream(builder))
+    //if the body stream was unused we have to complete it ourselves so the data is still consumed
+    streamManager.setBlackHoleIfUnset()
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = 0
@@ -118,10 +120,14 @@ trait HttpMessageDecoder extends LineParser {
         parsingHead = !parse(buffer)
       } 
       if (!parsingHead) {
+        if (!currentStreamManager.isDone) {
+          currentStreamManager.push(buffer)
+        }
+        //we have to immediately check again since it could be the end of the
+        //buffer and the loop will exit
         if (currentStreamManager.isDone) {
           parsingHead = true
-        } else {
-          currentStreamManager.push(buffer)
+          currentStreamManager.close()
         }
       }
     }
@@ -207,13 +213,16 @@ trait StreamManager extends Sink[ReadBuffer] {
   def isDone: Boolean
 }
 
-class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with StreamManager {
+trait SubBufferSink extends Sink[ReadBuffer] {
 
-  private var bodyRemaining = bodySize
+  private var bodyRemaining = 0
 
-  def isDone = bodyRemaining == 0
+  protected def bytesRemaining = bodyRemaining
+  protected def updateRemaining(newSize: Int): Unit = {
+    bodyRemaining = newSize
+  }
 
-  final override def push(buffer: ReadBuffer): PushResult = {
+  abstract override def push(buffer: ReadBuffer): PushResult = {
     val prevBytes = buffer.bytesRemaining
     val prevBodyRemaining = bodyRemaining
     val pushResult = if (bodyRemaining >= buffer.bytesRemaining) {
@@ -221,7 +230,7 @@ class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with Stream
       super.push(buffer)
     } else {
       val prevLimit = buffer.buffer.limit()
-      buffer.buffer.limit(bodyRemaining)
+      buffer.buffer.limit(buffer.buffer.position() + bodyRemaining)
       bodyRemaining = 0
       val res = super.push(buffer)
       buffer.buffer.limit(prevLimit)
@@ -229,7 +238,6 @@ class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with Stream
     }
     if (buffer.bytesRemaining == prevBytes) {
       //use it or lose it!
-      println(s"skipping ${prevBodyRemaining - bodyRemaining} buffer bytes")
       buffer.skip(prevBodyRemaining - bodyRemaining)
     }
     pushResult
@@ -237,7 +245,74 @@ class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with Stream
 
 }
 
-object NoBodyManager extends BasicStreamManager(0)
+class BasicStreamManager(bodySize: Int) extends LiveSink[ReadBuffer] with SubBufferSink with StreamManager {
+
+  def isDone = bytesRemaining == 0
+
+  updateRemaining(bodySize)
+
+}
+
+class ChunkedStreamManager extends LiveSink[ReadBuffer] with SubBufferSink with StreamManager with LineParser {
+  //parsing stuff
+  sealed trait State
+  case object ParsingHead extends  State
+  case object ParsingTail extends State
+  case object ParsingBody extends State
+  case object Done extends State
+  private var state: State = ParsingHead
+
+  def includeNewline = false
+  def initSize = 10
+
+  private var _isDone = false
+  def isDone = _isDone
+
+  def onComplete(line: ReadBuffer): Boolean = {
+    if (state == ParsingHead) {
+      val size = Integer.parseInt(line.readString, 16)
+      if (size == 0) {
+        _isDone = true
+      } 
+      updateRemaining(size)      
+    }
+    true
+  }
+
+  final override def push(buffer: ReadBuffer): PushResult = {
+    //the buffer may contain multiple chunks, so we have to consume them all
+    var lastResult: PushResult = PushResult.Ok
+    while (buffer.hasNext && state != Done) {
+      state match {
+        case ParsingHead => {
+          val doneParsingHead = parse(buffer)
+          if (doneParsingHead) {
+            state = ParsingBody
+          }
+        }
+        case ParsingBody => {
+          lastResult = super.push(buffer)
+          if (bytesRemaining == 0) {
+            state = ParsingTail
+          }
+        }
+        case ParsingTail => {
+          val doneParsingTail = parse(buffer)
+          if (doneParsingTail) {
+            state = ParsingHead
+          }
+        }
+        case Done => {}
+      }
+    }
+    lastResult
+  }
+
+}
+
+object NoBodyManager extends BasicStreamManager(0) {
+  setBlackHoleIfUnset()
+}
 
 //This collects raw data into an array.  Should not contain chunk headers
 class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuilding[Unit] {

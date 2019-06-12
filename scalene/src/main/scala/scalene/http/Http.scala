@@ -162,10 +162,17 @@ case class Body(data: BodyData, contentType: Option[ContentType]) {
 
 }
 
-sealed trait BodyData
+sealed trait BodyData {
+  def collect(): Deferred[ReadBuffer]
+}
+
 object BodyData {
-  case class Static(data: Array[Byte]) extends BodyData
-  case class Stream(data: scalene.stream.Stream[ReadBuffer]) extends BodyData
+  case class Static(data: Array[Byte]) extends BodyData {
+    def collect(): Deferred[ReadBuffer] = Deferred.successful(ReadBuffer(data))
+  }
+  case class Stream(data: scalene.stream.Stream[ReadBuffer]) extends BodyData {
+    def collect(): Deferred[ReadBuffer] = data.complete(new BodyCollector)
+  }
 
   val Empty = Static(new Array[Byte](0))
 }

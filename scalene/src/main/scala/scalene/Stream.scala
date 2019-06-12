@@ -163,9 +163,18 @@ trait LiveSource[T] {
   protected val setSignal = new LiveSignal
 
   def setDownstream(sink: Sink[T]): Unit = {
+    //println(s"$this setting downstream to $sink")
     downstream = Some(sink)
     setSignal.signal()
   }
+
+  def setBlackHoleIfUnset(): Unit = {
+    //println("setting to black hole")
+    if (downstream.isEmpty) {
+      setDownstream(Sink.blackHole[T])
+    }
+  }
+
 }
 
 class LiveSink[T] extends Sink[T] with LiveSource[T]{
@@ -233,9 +242,9 @@ trait Stream[T] {
     ChainedStreamBuilder(this, StreamBuilder(otherSink))
   }
   
-  def complete[E](collector: Deferred[Collector[T, E]]): Deferred[E] = collector.flatMap {c =>
-    complete(c)
-    ConstantDeferred(c.result)
+  def complete[E](collector: Collector[T, E]): Deferred[E] = defer {c =>
+    complete(collector: Sink[T])
+    collector.result
   }
 
   def complete(sink: Sink[T]): Unit
