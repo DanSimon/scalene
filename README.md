@@ -20,28 +20,28 @@ import scalene.routing._
 import BasicConversions._
 object Main extends App {
 
-	val route = GET / "hello" as "Hello, World!".ok
+  val route = GET / "hello" as "Hello, World!".ok
 
-	val settings = Settings.basic("example", 8080)
+  val settings = Settings.basic("example", 8080)
 
-	Routing.start(settings, route)
+  Routing.start(settings, route)
 }
 ```
 Here's something a little more complex
 ```scala
 //extract data from requests
 val sumRoute = "sum" / ![Int] / ![Int] to {case (a,b) => 
-	(a + b).ok
+  (a + b).ok
 }
 
 //easily define custom extractors
 val NonZeroInt = ![Int].filter{_ != 0, "must be nonzero"}
 val quotientRoute = "quotient" / ![Int] / NonZeroInt to {case (a,b) =>
-	(a / b).ok
+  (a / b).ok
 }
 
 //build trees of routes
-val calcRoutes = "calc" subroutes (sumRoute, quotientRoute)
+val calcRoutes = GET / "calc" // (sumRoute, quotientRoute)
 
 Routing.start(settings, Routes(calcRoutes))
 ```
@@ -50,7 +50,7 @@ Routing.start(settings, Routes(calcRoutes))
 (200 OK) 11
 
 >curl localhost:8080/calc/quotient/5/0
-(400 BAD_REQUEST) most be nonzero
+(400 BAD_REQUEST) must be nonzero
 ```
 It's also easy to open connections to remote systems
 
@@ -58,21 +58,21 @@ It's also easy to open connections to remote systems
 val cache = Memcache.client("memcache-host", 1211)
 
 def slowFib(n) = n match {
-	case 1 | 2 => 1
-	case n => fib(n - 1) + fib(n - 2)
+  case 1 | 2 => 1
+  case n => fib(n - 1) + fib(n - 2)
 }
 
 val PositiveInt = ![Int]("num")
-	.filter(_ > 0, "num must be positive")
+  .filter(_ > 0, "num must be positive")
 
 val fibRoute = GET / "fibonacci" / PositiveInt to {n => 
-	cache.get(s"fib_$n").map{
-		case Some(cached) => cached.ok
-		case None => for {
-			result <- Async(slowFib(n))
-			_ 	   <- memcache.set(s"$fib_n", result.toString)
-		} yield result.ok
-	}
+  cache.get(s"fib_$n").map{
+    case Some(cached) => cached.ok
+    case None => for {
+      result <- Async(slowFib(n))
+      _      <- memcache.set(s"$fib_n", result.toString)
+    } yield result.ok
+  }
 }
 
 Routing.start(settings, Routes(fibRoute))
@@ -87,7 +87,7 @@ Hopefully that gives you an idea of what this is all about.
 
 
 There's a lot of other stuff coming soon
-* Streaming
+* Streaming (mostly done at this point)
 * Http2 support
 * More web support like static file streaming
 
@@ -125,7 +125,7 @@ The only real rule I'm enforcing is that no new library dependencies can be adde
 
 ### Origins
 
-Scalene is heavily influenced by Tumblr's [Colossus](https://github.com/tumblr/colossus) framework, of which I was also the creator and lead developer.  Scalene though is not a fork of Colossus, but instead more like a re-imagining with some fairly fundamental design changes.  
+Scalene is heavily influenced by Tumblr's [Colossus](https://github.com/tumblr/colossus) framework, of which I was also the creator and lead developer.  Scalene is not a fork of Colossus, but instead more like a re-imagining with some fairly fundamental design changes.  
 
 The vast majority of Scalene was written from scratch, but some code is copied over from Colossus, which I've detailed in the [NOTICE](NOTICE) file and have included appropriate attribution in the relevant files.
 
@@ -152,7 +152,7 @@ Colossus | 357,922
 
 ## License
 
-Copyright 2018 Dan Simon
+Copyright 2019 Dan Simon
 
 Scalene is published under the MIT license.
 
