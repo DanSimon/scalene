@@ -17,9 +17,16 @@ trait Async[T] {
 
 case class ConstantAsync[T](value: Try[T]) extends Async[T] {
 
-  def map[U](f: T => U): Async[U] = ???
+  def map[U](f: T => U): Async[U] = ConstantAsync(value.map(f))
 
-  def flatMap[U](f: T => Async[U]): Async[U] = ???
+  def flatMap[U](f: T => Async[U]): Async[U] = value match {
+    case Success(v) => try {
+      f(v)
+    } catch {
+      case e: Exception => ConstantAsync(Failure(e))
+    }
+    case Failure(err) => ConstantAsync(Failure(err))
+  }
 
   def onComplete(cb: Try[T] => Unit): Unit = cb(value)
 
@@ -58,13 +65,21 @@ class PromiseAsync[T] extends Async[T] {
 
   def flatMap[U](f: T => Async[U]): Async[U] = value match {
     case Some(v) => v match {
-      case Success(s) => f(s)
+      case Success(s) => try {
+        f(s)
+      } catch {
+        case e: Exception => ConstantAsync(Failure(e))
+      }
       case Failure(err) => ConstantAsync(Failure(err))
     }
     case None => {
       val mapped = new PromiseAsync[U]
       callbacks.add(v => v match {
-        case Success(s) => f(s).onComplete(mapped.complete)
+        case Success(s) => try {
+          f(s).onComplete(mapped.complete)
+        } catch {
+          case e: Exception => mapped.complete(Failure(e))
+        }
         case Failure(err) => mapped.complete(Failure(err))
       })
       mapped

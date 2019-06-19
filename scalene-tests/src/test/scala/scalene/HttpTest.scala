@@ -86,6 +86,15 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     }
   }
 
+  it should "handle exception thrown in server" in {
+    val route = Routes(GET / "test" to {_ => throw new Exception("dead")})
+    withRoutes(route){client =>
+      client
+        .send(HttpRequest.get("/test"))
+        .map{res => assert(res.code == ResponseCode.Error)}
+    }
+  }
+
   behavior of "HttpRequestEncoding"
 
   it should "encode" in {

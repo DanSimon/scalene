@@ -42,7 +42,7 @@ class EventLoop(
 
   private val timer = new Timer(50)
 
-  val environment = new AsyncContext(timeKeeper, timer, dispatcher, this)
+  val environment = new AsyncContextImpl(timeKeeper, timer, dispatcher, this)
 
   private val selectActor: Actor[Select.type] = SimpleReceiver[Select.type]{_ => 
     select()

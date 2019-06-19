@@ -16,7 +16,11 @@ class ServiceServer[I,O](
   private val pendingRequests = new LinkedList[Async[O]]
 
   final def processRequest(request: I): Unit = {
-    val async = requestHandler.handleRequest(request)
+    val async = try {
+      requestHandler.handleRequest(request)
+    } catch {
+      case e: Exception => ConstantAsync(Success(requestHandler.handleError(Some(request), e)))
+    }
 
     pendingRequests.add(async)
     if (pendingRequests.size == 1) {
