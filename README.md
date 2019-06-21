@@ -8,10 +8,6 @@ simple and efficient API.  It could also easily serve as a simple abstraction
 over NIO for generalized TCP applications, but for now this is not a
 first-class goal of the project.
 
-Take a look at the included [benchmark
-example](benchmark/src/main/scala/Main.scala) to get an idea of what things
-will look like.
-
 _**Notice** : This project is just getting started!  Missing lots of features and probably super buggy, maybe you can help with that?_
 
 Probably best to just start with some examples.  The obligatory hello-world:
@@ -41,7 +37,7 @@ val quotientRoute = "quotient" / ![Int] / NonZeroInt to {case (a,b) =>
 }
 
 //build trees of routes
-val calcRoutes = GET / "calc" // (sumRoute, quotientRoute)
+val calcRoutes = GET / "calc" / List(sumRoute, quotientRoute)
 
 Routing.start(settings, Routes(calcRoutes))
 ```
