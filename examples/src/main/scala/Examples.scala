@@ -23,10 +23,18 @@ object Main extends App {
 
   println(fooRoutes.document)
 
+  implicit val pool = new scalene.actor.Pool
+  val blockingClient: String => scala.util.Try[String] =
+    x => if (x == "fail") {scala.util.Failure(new Exception("FAIL"))} else {Thread.sleep(5000);scala.util.Success(x.toUpperCase)}
+
+  val client = new scalene.ExternalBlockingClient(blockingClient)
+
   val routes = Routes(
     fooRoutes,
     streamRoute,
+    GET / "ucase" / ![String] to {s => client.send(s).map{_.ok}},
     GET / "sum" / ![Int] / ![Int] to {case (a,b) => (a + b).ok},
+
     GET / "quotient" / ![Int] / 
       ![Int].filter(_ != 0, "dividend can't be zero") to {case (a,b) => (a / b).ok}
   )

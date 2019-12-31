@@ -24,7 +24,7 @@ class ServiceServer[I,O](
 
     pendingRequests.add(async)
     if (pendingRequests.size == 1) {
-      async.onComplete{_ => _handle.foreach{_.requestWrite()}}
+      async.onComplete{_ => println("handle");_handle.foreach{_.requestWrite()}}
     }
   }
 
@@ -44,7 +44,11 @@ class ServiceServer[I,O](
     pendingRequests.size > 0 && pendingRequests.peek.result.isDefined
   }
   protected def nextOutputItem(): O = {
-    pendingRequests.remove.result.get.get
+    //TODO, failure should include request
+    pendingRequests.remove.result.get match {
+      case Success(value) => value
+      case Failure(ex) => requestHandler.handleError(None, ex)
+    }
   }
 
   protected def onOutputError(reason: Throwable): Unit = {
