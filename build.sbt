@@ -13,7 +13,7 @@ val baseSettings = Seq(
 
 lazy val root = (project in file("."))
   .settings(baseSettings)
-  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples, `scalene-tests`)
+  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples, `scalene-tests`, `scalene-sql`)
 
 lazy val `scalene-actor` = project
   .settings(baseSettings)
@@ -46,10 +46,19 @@ val benchmarkSettings = baseSettings ++ Seq(
   )
 )
 
+lazy val `scalene-sql` = project
+  .dependsOn(scalene)
+  .settings(Seq(
+    libraryDependencies += "org.scalikejdbc" %% "scalikejdbc"        % "3.4.+"    
+  ))
+
 lazy val benchmark = project
   .dependsOn(scalene, `scalene-routing`)
   .settings(benchmarkSettings)
 
 lazy val examples = project
-  .dependsOn(`scalene-routing`)
+  .dependsOn(`scalene-routing`, `scalene-sql`)
   .settings(baseSettings)
+  .settings(Seq(
+    libraryDependencies += "org.postgresql" % "postgresql"        % "42.2.0"    
+  ))

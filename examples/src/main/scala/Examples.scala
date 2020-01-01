@@ -2,9 +2,15 @@ package examples
 
 import scalene.routing._
 import scalene.stream._
+import scalene.sql._
+import scalikejdbc._
 import BasicConversions._
 
 object Main extends App {
+  
+  GlobalSettings.loggingSQLAndTime = LoggingSQLAndTimeSettings(
+    enabled = false,
+  )
 
   case class Foo(i: Int, s: String)
   val parseFooFromPath = ![Int] / ![String] map Foo.tupled
@@ -12,22 +18,31 @@ object Main extends App {
   val PositiveInt = ![Int]("num")
     .filter(_ > 0, "{NAME} must be a positive integer")
 
-  val fooRoutes = "foo" subroutes (
-    _ + POST + parseFooFromPath to {foo => s"got a foo $foo".ok},
-    _ + GET + PositiveInt to {id => s"give me foo $id".ok}
-  )
 
   val streamRoute = GET / "stream" to {_ =>
     Stream.fromIter(List("a", "b" , "c").toIterator).ok
   }
-
-  println(fooRoutes.document)
 
   implicit val pool = new scalene.actor.Pool
   val blockingClient: String => scala.util.Try[String] =
     x => if (x == "fail") {scala.util.Failure(new Exception("FAIL"))} else {Thread.sleep(5000);scala.util.Success(x.toUpperCase)}
 
   val client = new scalene.ExternalBlockingClient(blockingClient)
+
+  val sqlClient = MiniSQL.client("testconnection", "jdbc:postgresql://localhost:5432/test", "app", "app")
+
+  val fooRoutes = "foo" subroutes (
+    _ + POST + parseFooFromPath to {foo => s"got a foo $foo".ok},
+    _ + GET + PositiveInt to {id =>
+      sqlClient.query{implicit session =>
+        sql"SELECT name FROM foo WHERE id = ${id}"
+          .map{rs => rs.string("name")}
+          .single
+          .apply()
+          .getOrElse("(N/A)")
+      }.map{_.ok}
+    }
+  )
 
   val routes = Routes(
     fooRoutes,

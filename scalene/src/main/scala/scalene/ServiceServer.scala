@@ -24,7 +24,7 @@ class ServiceServer[I,O](
 
     pendingRequests.add(async)
     if (pendingRequests.size == 1) {
-      async.onComplete{_ => println("handle");_handle.foreach{_.requestWrite()}}
+      async.onComplete{_ => _handle.foreach{_.requestWrite()}}
     }
   }
 
