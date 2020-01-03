@@ -1,8 +1,7 @@
 
 val baseSettings = Seq(
   organization := "io.dsimon",
-  addCompilerPlugin("io.tryp" % "splain" % "0.3.1" cross CrossVersion.patch),
-  scalaVersion := "2.12.6",
+  scalaVersion := "2.12.10",
   libraryDependencies ++= Seq(
     "ch.qos.logback"               %  "logback-classic"      % "1.2.2",
     "org.slf4j"              %  "slf4j-api"                   % "1.7.6",
@@ -53,8 +52,11 @@ lazy val `scalene-sql` = project
   ))
 
 lazy val benchmark = project
-  .dependsOn(scalene, `scalene-routing`)
+  .dependsOn(scalene, `scalene-routing`, `scalene-sql`)
   .settings(benchmarkSettings)
+  .settings(Seq(
+    libraryDependencies += "org.postgresql" % "postgresql"        % "42.2.0"    
+  ))
 
 lazy val examples = project
   .dependsOn(`scalene-routing`, `scalene-sql`)

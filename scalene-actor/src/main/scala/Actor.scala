@@ -15,7 +15,6 @@ trait NoWakeMessage
 trait UntypedActorHandle {
   def kill(): Unit
   def stop(): Unit
-  def process(max: Int): ProcessResult
   def id: Long
   def untypedReceiver: UntypedReceiver
   def dispatcher: Dispatcher
@@ -27,13 +26,6 @@ trait Actor[T] extends UntypedActorHandle {
   def specialize[U <: T]: Actor[U] = this.asInstanceOf[Actor[U]]
 
 }
-/*
-object Actor {
-  def empty[T]: Actor[T] = new Actor[T]{
-    def send(message: T) = true
-  }
-}
-*/
 
 
 sealed trait ActorState
@@ -51,6 +43,18 @@ object ProcessResult {
   case object ActorStopped extends ProcessResult
 }
 
+//this is the object put into the dispatcher's queue.
+
+trait UntypedActorMessageProcessor {
+  def process(): Unit
+}
+
+case class ActorMessageProcessor[T](actor: ActorHandle[T], message: T) extends UntypedActorMessageProcessor {
+  def process(): Unit = {
+    actor.receiver.receive(message)
+  }
+}
+
 class ActorHandle[T](
   val dispatcher: DispatcherImpl,
   val receiverF: Context => Receiver[T],
@@ -59,12 +63,9 @@ class ActorHandle[T](
 
   val context: Context = new Context(this.asInstanceOf[Actor[Any]], dispatcher)
 
-  private val queue = new ConcurrentLinkedQueue[T]()
   private var _state: ActorState = ActorState.Starting
   private var currentReceiver = receiverF(context)
   def receiver = currentReceiver
-
-  private val processing = new AtomicBoolean(false)
 
   def untypedReceiver = receiver
 
@@ -82,53 +83,14 @@ class ActorHandle[T](
 
   def stop() {
     _state = ActorState.Stopping
-    //receiver.onStop()
-    if (queue.isEmpty) {
-      _state = ActorState.Stopped
-      dispatcher.controller.send(ControlMessage.Stop(this))
-    }
   }
 
-
   def send(message: T) : Boolean = if (_state == ActorState.Alive) {
-    val toNotify = (queue.peek == null) 
-    queue.add(message)
-    if (toNotify) {
-      if (!message.isInstanceOf[NoWakeMessage]) {
-        dispatcher.wake()
-      }
-      dispatcher.notify(this)
-    }
+    dispatcher.queueMessage(ActorMessageProcessor(this, message))
     true
   } else false
 
-  /*
-   * returns true if there's more work to do
-   */
-  def process(max: Int): ProcessResult = {
-    processing.set(true)
-    var num = 0
-    while (num < max && !queue.isEmpty) {
-      try {
-        receiver.receive(queue.poll)
-      } catch {
-        case e: Exception => restart(e)
-      }
-    }
-    processing.set(false)
-    if (queue.isEmpty) {
-      if (_state == ActorState.Stopping) {
-        _state = ActorState.Stopped
-        ProcessResult.ActorStopped
-      } else {        
-        ProcessResult.ProcessEnd
-      }
-      
-    } else ProcessResult.ProcessMore
-  }
-
   def kill() = {
-    queue.clear()
     _state = ActorState.Stopped
     receiver.onStop() //maybe indicate somehow that its being killed vs shutdown
   }
@@ -168,8 +130,10 @@ class Pool {
 
   private val dispatchers = new collection.mutable.Queue[DispatcherImpl]
 
-  def createDispatcher = synchronized {
-    val d = new DispatcherImpl(this, nextId.incrementAndGet.toInt)
+  def createDispatcher(name: String) = synchronized {
+    val id = nextId.incrementAndGet.toInt
+    val fixedName = name.replace("{ID}", id.toString)
+    val d = new DispatcherImpl(this, id, fixedName)
     dispatchers.enqueue(d)
     d
   }

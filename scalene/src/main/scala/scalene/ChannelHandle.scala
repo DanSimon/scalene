@@ -71,6 +71,8 @@ extends ChannelHandle {
 
   protected def keyInterestOps(ops: Int) { 
     selectionKey.interestOps(ops)
+    //changing key ops requires waking up the selector if it's blocked
+    selectionKey.selector.wakeup()
   }
 
   def remoteAddress: Option[InetSocketAddress] = try {

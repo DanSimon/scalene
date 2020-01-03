@@ -177,7 +177,7 @@ object BodyData {
   val Empty = Static(new Array[Byte](0))
 }
 
-trait BodyFormatter[T] {
+trait BodyFormatter[-T] {
   def format(item: T): BodyData
   def contentType: Option[ContentType]
 

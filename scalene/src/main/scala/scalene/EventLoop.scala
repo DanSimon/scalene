@@ -45,15 +45,21 @@ class EventLoop(
   val environment = new AsyncContextImpl(timeKeeper, timer, dispatcher, this)
 
   private val selectActor: Actor[Select.type] = SimpleReceiver[Select.type]{_ => 
-    select()
-    coSelect.send(Select)
+    processSelect()
+    if (selector.selectNow() > 0) {
+      selectActor.send(Select)
+    } else {
+      coSelect.send(Select)
+    }
   }
 
+  val selectDispatcher = dispatcher.pool.createDispatcher("selector-{ID}")
   //this is needed because if the worker sends Select to itself it doesn't
   //yield execution to other actors
   private val coSelect: Actor[Select.type] = {
-    dispatcher.attach(new Receiver[Select.type](_) {
+    selectDispatcher.attach(new Receiver[Select.type](_) {
       def receive(m: Select.type) {
+        selector.select()
         selectActor.send(Select)
       }
     })
@@ -72,13 +78,8 @@ class EventLoop(
     _nextId
   }
 
-  dispatcher.addWakeLock(new WakeLock {
-    def wake(): Unit = {
-      selector.wakeup()
-    }
-  })
-
   private def attachInternal(channel: SocketChannel, handler: ConnectionHandler, immediatelyConnected: Boolean, keyInterest: Int): Unit = {
+    selector.wakeup()
     val key = channel.register(selector, keyInterest)
     val handle = new LiveChannelHandle(channel, key, timeKeeper)
     val manager = new ConnectionManager(nextId(), handler, handle)
@@ -134,8 +135,7 @@ class EventLoop(
     }
   }
 
-  private def select() {
-    selector.select()
+  private def processSelect() {
     timeKeeper.refresh()
     val selectedKeys  = selector.selectedKeys.iterator
     while (selectedKeys.hasNext) {

@@ -24,30 +24,33 @@ object Main extends App {
   }
 
   implicit val pool = new scalene.actor.Pool
-  val blockingClient: String => scala.util.Try[String] =
-    x => if (x == "fail") {scala.util.Failure(new Exception("FAIL"))} else {Thread.sleep(5000);scala.util.Success(x.toUpperCase)}
 
-  val client = new scalene.ExternalBlockingClient(blockingClient)
+  val worldClient = MiniSQL.client("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass")
 
-  val sqlClient = MiniSQL.client("testconnection", "jdbc:postgresql://localhost:5432/test", "app", "app")
+  val random = new java.util.Random
 
-  val fooRoutes = "foo" subroutes (
-    _ + POST + parseFooFromPath to {foo => s"got a foo $foo".ok},
-    _ + GET + PositiveInt to {id =>
-      sqlClient.query{implicit session =>
-        sql"SELECT name FROM foo WHERE id = ${id}"
-          .map{rs => rs.string("name")}
-          .single
-          .apply()
-          .getOrElse("(N/A)")
-      }.map{_.ok}
-    }
-  )
+  /*
+  val dbroute = GET / "db" to {_ =>
+    val id = random.nextInt() % 10000
+  */
+
+  val fooRoutes = GET / "foo" / ![Int] to {id =>
+    worldClient.query{session =>
+      val prep = session.prepared("SELECT randomnumber FROM world WHERE id = ?")
+      prep.setInt(1, id)
+      val rs = prep.executeQuery()
+      if (rs.next()) {
+        rs.getInt(1).toString
+      } else {
+        "(N/A)"
+      }
+    }.map{_.ok}
+  }
+  
 
   val routes = Routes(
     fooRoutes,
     streamRoute,
-    GET / "ucase" / ![String] to {s => client.send(s).map{_.ok}},
     GET / "sum" / ![Int] / ![Int] to {case (a,b) => (a + b).ok},
 
     GET / "quotient" / ![Int] / 

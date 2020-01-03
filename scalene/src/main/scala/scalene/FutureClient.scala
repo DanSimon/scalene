@@ -11,7 +11,7 @@ class FutureClient[Request, Response](
   config: BasicClientConfig
 )(implicit pool: Pool) {
 
-  implicit val dispatcher = pool.createDispatcher
+  implicit val dispatcher = pool.createDispatcher("future-client-{ID}")
   val timeKeeper = new RealTimeKeeper
 
   val receiver = SimpleReceiver[EventLoopEvent]{e => ()}

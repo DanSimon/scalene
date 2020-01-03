@@ -5,6 +5,7 @@ import util._
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.Try
 
 trait AsyncContext {
   def localized[T](key: UniqueKey[T])(createor: => T): T
@@ -13,6 +14,7 @@ trait AsyncContext {
   def timer: Timer
 
   def futureToAsync[T](f: Future[T]): Async[T]
+  def threadSafePromise[T](): (Try[T] => Unit, Async[T])
 }
 
 class AsyncContextImpl (
@@ -39,9 +41,20 @@ class AsyncContextImpl (
   def futureToAsync[T](f: Future[T]): Async[T] = {
     val p = new PromiseAsync[T]
     f.onComplete{t => 
-      futureToAsyncExecutor.send(() => p.complete(t))
+      futureToAsyncExecutor.send(() => {p.complete(t)})
     }
     p
   }
+
+  def threadSafePromise[T](): (Try[T] => Unit, Async[T]) = {
+    val promise = new PromiseAsync[T]
+    val func = (t: Try[T]) => {
+      futureToAsyncExecutor.send(() => promise.complete(t))
+      ()
+    }
+    (func, promise)
+  }
+
+    
 
 }

@@ -31,41 +31,6 @@ class ActorSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     promise.future.map{s => assert(s == "test")}
   }
 
-  it should "handle wake locks" in {
-    implicit val d = pool.createDispatcher
-    val go = new AtomicBoolean(false)
-    val started = new AtomicBoolean(false)
-    val bstarted = new AtomicBoolean(false)
-
-    case class Foo() extends NoWakeMessage
-
-    val a = d.attach(ctx => new Receiver[Foo](ctx) {
-      ctx.dispatcher.addWakeLock(new WakeLock {
-        def wake(): Unit = {
-          go.set(true)
-        }
-      })
-      def receive(s: Foo) = {
-        started.set(true)
-        while (!go.get()) {
-          Thread.sleep(50)
-        }
-      }
-    })
-
-    val b = SimpleReceiver[String]{s => bstarted.set(true)}
-
-    a.send(Foo())
-    while(!started.get()) {
-      Thread.sleep(20)
-    }
-    go.get should equal(false)
-    b.send("whatever")
-    while (!bstarted.get()) {
-      Thread.sleep(20)
-    }
-    go.get should equal(true)
-  }
 
 }
 
