@@ -49,11 +49,12 @@ class CListTest extends WordSpec with MustMatchers {
     }
 
     "combine with other extractor" in {
+
+      
       val route = GET / "foo"
       val p: Parser[RequestContext, Int] = Parameter("foo", ![Int])
-      //implicit val builder: RouteBuilderCombiner[ExactMatchPath, Parser[RequestContext, Int]] = RouteBuilderCombiner.comCom//[Unit, Int, ExactMatchPath, Parser[RequestContext, Int]]
-      implicit val c : AsCellComponent[RequestContext, Int, Parser[RequestContext, Int]] = implicitly
-      val more = route + p//Parameter("foo", ![Int])
+
+      val more = route + ?("foo", ![Int])
     }
   }
 

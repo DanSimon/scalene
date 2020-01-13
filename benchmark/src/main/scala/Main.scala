@@ -33,7 +33,7 @@ object Main extends App {
 
   val random = new java.util.Random
   
-  def randomWorld(session: MiniSQLSession): Option[JsonMessage] = {
+  def randomWorld(session: MiniSQLSession): Option[DBRouteMessage] = {
     val stmt = session.prepared("SELECT id, randomnumber FROM world WHERE id = (?)")
     stmt.setInt(1, math.abs(random.nextInt) % 10000)
     val rs = stmt.executeQuery()
@@ -51,7 +51,7 @@ object Main extends App {
     }
   }
 
-  val multiRoute = (GET / "queries") and ?("queries",![Int]) to {num =>
+  val multiRoute = (GET / "queries") + ?("queries",![Int]) to {num =>
     worldClient.query{session =>
       val worlds = (0 to num).flatMap{i => randomWorld(session)}.toArray
       MultiDBRouteMessage(worlds).ok
