@@ -61,6 +61,7 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
 
   implicit class CombineTo[A](val a: A) {
     def +[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
+    def and[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
   }
 
   implicit class AsRouteBuilderOps[P, O](p: P)(implicit as: AsRouteBuilder.Aux[P, O])

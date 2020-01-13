@@ -28,5 +28,34 @@ class CListTest extends WordSpec with MustMatchers {
     }
   }
 
+  "ExactMatchPath" must {
+    "work on it's own" in {
+      val expected = ExactMatchPath(scalene.http.Method.Get, ConstantPrefixPath("foo" :: Nil))
+      GET / "foo" must equal(expected)
+    }
+
+    "combine with string" in {
+      val a = ExactMatchPath(scalene.http.Method.Get, ConstantPrefixPath("foo" :: Nil))
+      val expected = ExactMatchPath(scalene.http.Method.Get, ConstantPrefixPath("foo" :: "bar" :: Nil))
+      a / "bar" must equal(expected)
+    }
+
+    "combine with path extractor" in {
+      val route = GET / "foo" / ![Int]
+      //implicit val builder: RouteBuilderCombiner[RouteBuilder[Int], Parser[RequestContext, Unit]] = RouteBuilderCombiner.builderCom[Int, Unit, Parser[RequestContext, Unit], Int]
+      val more = route + Parameter("foo", "bar")
+
+      more.isInstanceOf[RouteBuilder[Int]] must equal(true)
+    }
+
+    "combine with other extractor" in {
+      val route = GET / "foo"
+      val p: Parser[RequestContext, Int] = Parameter("foo", ![Int])
+      //implicit val builder: RouteBuilderCombiner[ExactMatchPath, Parser[RequestContext, Int]] = RouteBuilderCombiner.comCom//[Unit, Int, ExactMatchPath, Parser[RequestContext, Int]]
+      implicit val c : AsCellComponent[RequestContext, Int, Parser[RequestContext, Int]] = implicitly
+      val more = route + p//Parameter("foo", ![Int])
+    }
+  }
+
 }
 
