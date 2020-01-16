@@ -23,9 +23,9 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
   private val nextId = new AtomicLong()
   private val actors = new ConcurrentHashMap[Long, UntypedActorHandle]()
 
-  private val messageQueue = new LinkedBlockingQueue[UntypedActorMessageProcessor]()
+  private val messageQueue = new LinkedBlockingQueue[DispatcherMessage]()
 
-  def queueMessage(message: UntypedActorMessageProcessor): Unit = {
+  def queueMessage(message: DispatcherMessage): Unit = {
     messageQueue.add(message)
   }
 
@@ -34,12 +34,11 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
   val thread = new Looper
   thread.setDaemon(false)
   thread.start
-  val controller = attach(new Controller(_))
   val threadId = thread.getId
 
   def shutdown() {
     running.set(false)
-    controller.send(ControlMessage.Shutdown)
+    thread.interrupt()
   }
 
   private def stopActor(actor: UntypedActorHandle) {
@@ -55,16 +54,6 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
     actors.clear()
   }
 
-  class Controller(context: Context) extends Receiver[ControlMessage](context) {
-    def receive(m: ControlMessage) = m match {
-      case ControlMessage.Stop(actor) => stopActor(actor)
-      case ControlMessage.Shutdown => {
-        running.set(false)
-        finishShutdown()
-      }
-    }
-  }
-
   class Looper extends Thread(name) {
 
     val lock = new Object
@@ -72,7 +61,21 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
     override def run() : Unit = {
       while (running.get()) {
         try {
-          messageQueue.take().process()
+          messageQueue.take() match {
+            case p: UntypedActorMessageProcessor => try {
+              p.process()
+            } catch {
+              case e: Exception => {
+                p.actor.restart(e)
+              }
+            }
+            case a: ActorMetaActionMessage => a.action match {
+              case ActorMetaAction.StopActor => stopActor(a.actor)
+            }
+            case ShutdownDispatcher => {
+              running.set(false)
+            }
+          }
         } catch {
           case e: InterruptedException => {}
           case e: Exception => {

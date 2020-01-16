@@ -18,6 +18,7 @@ trait UntypedActorHandle {
   def id: Long
   def untypedReceiver: UntypedReceiver
   def dispatcher: Dispatcher
+  def restart(exception: Exception): Unit
 }
 
 trait Actor[T] extends UntypedActorHandle {
@@ -45,7 +46,10 @@ object ProcessResult {
 
 //this is the object put into the dispatcher's queue.
 
-trait UntypedActorMessageProcessor {
+sealed trait DispatcherMessage
+
+trait UntypedActorMessageProcessor extends DispatcherMessage{
+  def actor: UntypedActorHandle
   def process(): Unit
 }
 
@@ -54,6 +58,14 @@ case class ActorMessageProcessor[T](actor: ActorHandle[T], message: T) extends U
     actor.receiver.receive(message)
   }
 }
+
+sealed trait ActorMetaAction
+object ActorMetaAction {
+  case object StopActor extends ActorMetaAction
+}
+
+case class ActorMetaActionMessage(actor: UntypedActorHandle, action: ActorMetaAction) extends DispatcherMessage
+case object ShutdownDispatcher extends DispatcherMessage
 
 class ActorHandle[T](
   val dispatcher: DispatcherImpl,
@@ -69,7 +81,7 @@ class ActorHandle[T](
 
   def untypedReceiver = receiver
 
-  private def restart(exception: Exception) {
+  def restart(exception: Exception) {
     currentReceiver.onBeforeRestart(exception)
     currentReceiver = receiverF(context)
     currentReceiver.onStart()
@@ -83,6 +95,7 @@ class ActorHandle[T](
 
   def stop() {
     _state = ActorState.Stopping
+    dispatcher.queueMessage(ActorMetaActionMessage(this, ActorMetaAction.StopActor))
   }
 
   def send(message: T) : Boolean = if (_state == ActorState.Alive) {
@@ -122,40 +135,6 @@ abstract class Receiver[T](context: Context) extends UntypedReceiver {
 }
 
 
-class Pool {
-  
-  val id = System.nanoTime
-
-  private val nextId = new AtomicLong(0)
-
-  private val dispatchers = new collection.mutable.Queue[DispatcherImpl]
-
-  def createDispatcher(name: String) = synchronized {
-    val id = nextId.incrementAndGet.toInt
-    val fixedName = name.replace("{ID}", id.toString)
-    val d = new DispatcherImpl(this, id, fixedName)
-    dispatchers.enqueue(d)
-    d
-  }
-
-  def shutdown(): Unit = synchronized {
-    dispatchers.foreach{_.shutdown}
-  }
-
-  def join()  = synchronized {
-    while (!dispatchers.isEmpty) {
-      try {
-        //need to keep the head in the queue until its dead
-        dispatchers.head.thread.join
-        dispatchers.dequeue
-      } catch {
-        case e: Exception => println(e.toString)
-      }
-    }
-  }
-
-
-}
 
 
 class SimpleReceiver[T](val context: Context, val receiver: T => Unit) extends Receiver[T](context) {
