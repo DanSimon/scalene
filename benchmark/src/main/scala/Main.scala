@@ -29,7 +29,7 @@ object Main extends App {
 
   
   implicit val pool = new Pool
-  val worldClient = MiniSQL.client("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass")
+  val worldClient = MiniSQL.client2("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass", 12)
 
   val random = new java.util.Random
   
@@ -51,11 +51,26 @@ object Main extends App {
     }
   }
 
-  val multiRoute = (GET / "queries") + ?("queries",![Int]) to {num =>
+  val multiRoute = (GET / "queries" / ![Int])  to {num => //+ ?("queries",![Int]) to {num =>
     worldClient.query{session =>
-      val worlds = (0 to num).flatMap{i => randomWorld(session)}.toArray
+      val worlds = new Array[DBRouteMessage](num)
+      var i  = 0
+      while (i < num) {
+        worlds(i) = randomWorld(session).get//val worlds = (0 to 1).flatMap{i => randomWorld(session)}.toArray
+        i += 1
+      }
       MultiDBRouteMessage(worlds).ok
+      //"ok".ok
     }
+  }
+
+  import C._
+
+  val processor = new SimpleWorkerClient[String, String](4, () => _.toUpperCase)
+
+  val processRoute = GET / "process" / ![String] to {str =>
+    processor.send(str).map{_.ok}
+    
   }
 
 
@@ -64,7 +79,9 @@ object Main extends App {
     GET / "plaintext" as "Hello, World".ok,
     GET / "json"      as JsonRouteMessage("Hello, World").ok,
     dbRoute,
-    multiRoute
+    multiRoute,
+    processRoute,
+    GET / "shutdown" to {_ => processor.shutdown; "done".ok}
   )
 
   Routing.start(settings, routes)
