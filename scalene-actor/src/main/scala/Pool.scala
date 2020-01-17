@@ -2,6 +2,7 @@ package scalene.actor
 
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 
+//TODO: make more thread-safe!!
 
 class Pool {
   
@@ -11,11 +12,13 @@ class Pool {
 
   private val dispatchers = new collection.mutable.Queue[DispatcherImpl]
 
-  def createDispatcher(name: String) = synchronized {
+  def createDispatcher(name: String) = {
     val id = nextId.incrementAndGet.toInt
     val fixedName = name.replace("{ID}", id.toString)
     val d = new DispatcherImpl(this, id, fixedName)
-    dispatchers.enqueue(d)
+    synchronized {
+      dispatchers.enqueue(d)
+    }
     d
   }
 
@@ -23,12 +26,14 @@ class Pool {
     dispatchers.foreach{_.shutdown}
   }
 
-  def join()  = synchronized {
+  def join()  = {
     while (!dispatchers.isEmpty) {
       try {
         //need to keep the head in the queue until its dead
         dispatchers.head.thread.join
-        dispatchers.dequeue
+        synchronized {
+          dispatchers.dequeue
+        }
       } catch {
         case e: Exception => println(e.toString)
       }
