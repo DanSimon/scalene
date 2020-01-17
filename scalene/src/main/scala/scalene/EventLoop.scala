@@ -101,6 +101,7 @@ class EventLoop(
   //TODO: handlerF probably doesn't need to be a function since it should be
   //the case that anywhere this is called should already have access to the
   //environment
+  //TODO: This isn't thread safe, needs to be handled as a message (see processSelect in finishConnect)
   def attachAndConnect[T <: ConnectionHandler](address: InetSocketAddress, handlerF: AsyncContext => T): T = {
     val channel = SocketChannel.open()
     channel.configureBlocking(false)
@@ -143,13 +144,16 @@ class EventLoop(
       if (!key.isValid) {
         error("KEY IS INVALID")
       } else if (key.isConnectable) {
-        val con = key.attachment.asInstanceOf[ConnectionManager]
+        //there's a race condition right now where the select thread gets the
+        //key before the manager is attached to it
+        val con = Option(key.attachment.asInstanceOf[ConnectionManager])
         try {
-          con.finishConnect()
+          con.foreach{_.finishConnect()}
         } catch {
           case t: Throwable => {
             error(s"Error while connecting, $t")
-            removeConnection(con, DisconnectReason.ClientConnectFailed(t))
+            t.printStackTrace()
+            removeConnection(con.get, DisconnectReason.ClientConnectFailed(t))
             key.cancel()
           }
         }
