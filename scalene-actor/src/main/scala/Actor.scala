@@ -14,6 +14,7 @@ trait NoWakeMessage
 
 trait UntypedActorHandle {
   def kill(): Unit
+  def start(): Unit
   def stop(): Unit
   def id: Long
   def untypedReceiver: UntypedReceiver
@@ -64,6 +65,12 @@ object ActorMetaAction {
   case object StopActor extends ActorMetaAction
 }
 
+trait UntypedAttachActorMessage extends DispatcherMessage {
+  def actor: UntypedActorHandle
+}
+
+case class AttachActorMessage[T](actor: Actor[T]) extends UntypedAttachActorMessage
+
 case class ActorMetaActionMessage(actor: UntypedActorHandle, action: ActorMetaAction) extends DispatcherMessage
 case object ShutdownDispatcher extends DispatcherMessage
 
@@ -76,6 +83,7 @@ class ActorHandle[T](
   val context: Context = new Context(this.asInstanceOf[Actor[Any]], dispatcher)
 
   private var _state: ActorState = ActorState.Starting
+  private var _sendable: Boolean = true
   private var currentReceiver = receiverF(context)
   def receiver = currentReceiver
 
@@ -95,55 +103,19 @@ class ActorHandle[T](
 
   def stop() {
     _state = ActorState.Stopping
+    _sendable = false
     dispatcher.queueMessage(ActorMetaActionMessage(this, ActorMetaAction.StopActor))
   }
 
-  def send(message: T) : Boolean = if (_state == ActorState.Alive) {
+  def send(message: T) : Boolean = if (_sendable) {
     dispatcher.queueMessage(ActorMessageProcessor(this, message))
     true
   } else false
 
   def kill() = {
     _state = ActorState.Stopped
+    _sendable = false
     receiver.onStop() //maybe indicate somehow that its being killed vs shutdown
   }
 }
-
-
-class Context private[actor](untypedself: Actor[Any], _dispatcher: Dispatcher) {
-  private[actor] def retypeSelf[T] = untypedself.asInstanceOf[Actor[T]]
-
-  implicit val dispatcher = _dispatcher
-}
-
-trait UntypedReceiver {
-  def onStop(): Unit = {}
-
-}
-
-abstract class Receiver[T](context: Context) extends UntypedReceiver {
-
-  val self = context.retypeSelf[T]
-  val dispatcher = context.dispatcher
-
-  def receive(message: T): Unit
-
-  def onStart(): Unit = {}
-  def onBeforeRestart(exception: Exception): Unit = {}
-  def onAfterRestart(): Unit = {}
-
-}
-
-
-
-
-class SimpleReceiver[T](val context: Context, val receiver: T => Unit) extends Receiver[T](context) {
-
-  def receive(t: T): Unit = receiver(t)
-
-}
-object SimpleReceiver {
-  def apply[T](r: T => Unit)(implicit dispatcher: Dispatcher): Actor[T] = dispatcher.attach(new SimpleReceiver(_, r))
-}
-
 

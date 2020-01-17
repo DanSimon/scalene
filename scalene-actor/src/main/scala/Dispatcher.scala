@@ -4,12 +4,6 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, LinkedBlo
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 import java.lang.Thread
 
-sealed trait ControlMessage
-case object ControlMessage {
-  case class Stop(actor: UntypedActorHandle) extends ControlMessage
-  case object Shutdown extends ControlMessage
-}
-
 trait Dispatcher {
   def shutdown(): Unit
   def pool: Pool
@@ -28,6 +22,8 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
   def queueMessage(message: DispatcherMessage): Unit = {
     messageQueue.add(message)
   }
+
+  def nextActorId: Long = nextId.incrementAndGet
 
   private val running = new AtomicBoolean(true)
 
@@ -54,6 +50,29 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
     actors.clear()
   }
 
+  private def processDispatcherMessage(d: DispatcherMessage): Unit = d match {
+
+    case p: UntypedActorMessageProcessor => try {
+      p.process()
+    } catch {
+      case e: Exception => {
+        p.actor.restart(e)
+      }
+    }
+    case a: ActorMetaActionMessage => a.action match {
+      case ActorMetaAction.StopActor => stopActor(a.actor)
+    }
+    case ShutdownDispatcher => {
+      running.set(false)
+    }
+    case a: UntypedAttachActorMessage => {
+      val actor = a.actor
+      actors.put(actor.id, actor)
+      actor.start()
+    }
+
+  }
+
   class Looper extends Thread(name) {
 
     val lock = new Object
@@ -61,21 +80,7 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
     override def run() : Unit = {
       while (running.get()) {
         try {
-          messageQueue.take() match {
-            case p: UntypedActorMessageProcessor => try {
-              p.process()
-            } catch {
-              case e: Exception => {
-                p.actor.restart(e)
-              }
-            }
-            case a: ActorMetaActionMessage => a.action match {
-              case ActorMetaAction.StopActor => stopActor(a.actor)
-            }
-            case ShutdownDispatcher => {
-              running.set(false)
-            }
-          }
+          processDispatcherMessage(messageQueue.take())
         } catch {
           case e: InterruptedException => {}
           case e: Exception => {
@@ -93,9 +98,10 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
   }
 
   def attach[T](receiver: Context => Receiver[T]): Actor[T] = {
-    val actor = new ActorHandle[T](this, receiver, nextId.incrementAndGet)
-    actors.put(actor.id, actor)
-    actor.start()
+    val actor = new ActorHandle[T](this, receiver, this.nextActorId) 
+    queueMessage(AttachActorMessage(actor))
+    //notice that we return the actor before it's attached and started, but that's ok because the attach message will arrive
+    //before any user-sent messages
     actor
   }
 

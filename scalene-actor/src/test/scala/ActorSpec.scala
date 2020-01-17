@@ -17,6 +17,12 @@ class ActorSpec extends FlatSpec with Matchers with BeforeAndAfterAll{
     pool.join
   }
 
+  def withD(f: Dispatcher => Unit): Unit = {
+    val d = pool.createDispatcher("test")
+    f(d)
+    d.shutdown()
+  }
+
   it should "test" in {
     assert(true)
   }
@@ -33,7 +39,7 @@ class ActorSpec extends FlatSpec with Matchers with BeforeAndAfterAll{
     }
 
     s.send("hey")
-    Thread.sleep(200)
+    Thread.sleep(100)
     assert(b.get)
   }
 
@@ -44,7 +50,6 @@ class ActorSpec extends FlatSpec with Matchers with BeforeAndAfterAll{
 
     val b = SimpleReceiver[Unit]{_ => a.send(())}
 
-    Thread.sleep(50)
     b.send(())
     Thread.sleep(50)
     assert(res.get)
@@ -78,6 +83,20 @@ class ActorSpec extends FlatSpec with Matchers with BeforeAndAfterAll{
     Thread.sleep(50)
     assert(!r.get)
     a.send("HEY AGAIN")
+    Thread.sleep(50)
+    assert(r.get)
+  }
+
+  it should "trigger start hoook" in {
+    implicit val d = pool.createDispatcher("asdf")
+    val r = new AtomicBoolean(false)
+    val a = d.attach(ctx => new Receiver[String](ctx) {
+      def receive(s: String) = {}
+
+      override def onStart() = {
+        r.set(true)
+      }
+    })
     Thread.sleep(50)
     assert(r.get)
   }
