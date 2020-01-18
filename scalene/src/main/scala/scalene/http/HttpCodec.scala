@@ -29,6 +29,12 @@ trait HttpMessageDecoder extends LineParser {
 
   final val zeroFirstLine = new Array[Byte](0)
 
+  private var messages = 0L
+  def messagesDecoded:Long = messages
+
+  var currentSize = 0L
+  def currentMessageSize: Long = currentSize
+
   private var buildFirstLine = new Array[Byte](0)
   private var buildHeaders = new LinkedList[Header]
   private var buildContentLength = 0
@@ -119,14 +125,18 @@ trait HttpMessageDecoder extends LineParser {
       while (parsingHead && buffer.hasNext) {
         parsingHead = !parse(buffer)
       } 
+      currentSize += buffer.bytesRead
       if (!parsingHead) {
         if (!currentStreamManager.isDone) {
           currentStreamManager.push(buffer)
+          currentSize += buffer.bytesRead
         }
         //we have to immediately check again since it could be the end of the
         //buffer and the loop will exit
         if (currentStreamManager.isDone) {
           parsingHead = true
+          messages += 1
+          currentSize = 0
           currentStreamManager.close()
         }
       }

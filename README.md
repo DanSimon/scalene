@@ -3,12 +3,9 @@
 Scalene is a multi-threaded, asynchronous, reactive TCP I/O framework
 primarily focused on building HTTP servers.
 
-Scalene aims to be the fastest HTTP framework on the JVM while also having a
-simple and efficient API.  It could also easily serve as a simple abstraction
-over NIO for generalized TCP applications, but for now this is not a
-first-class goal of the project.
-
-_**Notice** : This project is just getting started!  Missing lots of features and probably super buggy, maybe you can help with that?_
+_**Notice** : This project is just getting started!  Lots of core functionality
+works but it's missing lots of features and probably super buggy, maybe you can
+help with that?_
 
 Probably best to just start with some examples.  The obligatory hello-world:
 ```scala
@@ -25,13 +22,17 @@ object Main extends App {
 ```
 Here's something a little more complex
 ```scala
-//extract data from requests
+//type-safe data extraction from requests
 val sumRoute = "sum" / ![Int] / ![Int] to {case (a,b) => 
   (a + b).ok
 }
 
-//easily define custom extractors
-def nonZeroInt(name: String) = ![Int].filter{_ != 0, s"${name} must be nonzero"}
+//easily define your own custom data extractors
+case class NonZeroInt(value: Int)
+
+def nonZeroInt(name: String): Extractor[NonZeroInt] = ![Int]
+  .filter{_ != 0, s"${name} must be nonzero"}
+  .map(NonZeroInt.apply)
 
 val Dividend = nonZeroInt("dividend")
 
@@ -39,11 +40,20 @@ val Dividend = nonZeroInt("dividend")
 
 //extract from the path
 val quotientRoute = "quotient" / ![Int] / Dividend to {case (a,b) =>
-  (a / b).ok
+  (a / b.value).ok
 }
 
 //or extract from other parts
-val otherQuotientRoute = "other-quotient" + ?("divisor", ![Int]) + Header("dividend", Dividend) to {(_ / _).ok}
+val otherQuotientRoute = {
+  //routes are built as a combination of parsers
+  val path        = Path("other-quotient")
+  val queryParam  = Parameter("divisor", ![Int])
+  val header      = Header("dividend", Dividend) 
+
+  //parser composition is always type-safe
+  val incompleteRoute:RouteBuilder[(Int, NonZeroInt)]  =  (path + queryParam + header) 
+  incompleteRoute to {(a,b) => (a / b.value).ok}
+}
 
 
 //now build trees of routes
