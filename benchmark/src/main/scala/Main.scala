@@ -24,7 +24,7 @@ object Main extends App {
   val settings = Settings.basic(
     serverName = "scalene",
     port = 9876,
-    server = ServerSettings.Default//.copy(numWorkers = Some(1))
+    server = ServerSettings.Default.copy(numWorkers = Some(1))
   )
 
   

@@ -31,12 +31,13 @@ val sumRoute = "sum" / ![Int] / ![Int] to {case (a,b) =>
 }
 
 //easily define custom extractors
-val NonZeroInt = ![Int].filter{_ != 0, "must be nonzero"}
-val quotientRoute = "quotient" / ![Int] / NonZeroInt to {case (a,b) =>
+def nonZeroInt(name: String) = ![Int].filter{_ != 0, s"${name} must be nonzero"}
+
+val quotientRoute = "quotient" / ![Int] / nonZeroInt("dividend") to {case (a,b) =>
   (a / b).ok
 }
 
-//build trees of routes
+//now build trees of routes
 val calcRoutes = GET / "calc" / List(sumRoute, quotientRoute)
 
 Routing.start(settings, Routes(calcRoutes))
@@ -46,7 +47,7 @@ Routing.start(settings, Routes(calcRoutes))
 (200 OK) 11
 
 >curl localhost:8080/calc/quotient/5/0
-(400 BAD_REQUEST) must be nonzero
+(400 BAD_REQUEST) dividend must be nonzero
 ```
 It's also easy to open connections to remote systems
 
@@ -79,7 +80,7 @@ Hopefully that gives you an idea of what this is all about.
 
 * **It's really fast!** - Scalene is built from the ground up for low-latency network I/O and follows the design philosophy of _maximizing concurrency while minimizing parallelism_.  When possible, all I/O relative to a single operation is single-threaded.  When writing services you don't have to think about this though, Scalene does all the optimization and thread-management under the hood.
 * **Lightweight** - Currently Scalene only has a dependency on Shapeless.  The core library has no dependencies at all.
-* **Powerful HTTP Routing DSL** : Composable, functional, self-documenting, and easily configurable and extendable.
+* **Powerful Declarative Routing DSL** : Composable, functional, self-documenting, and easily configurable and extendable.
 
 
 There's a lot of other stuff coming soon
@@ -124,27 +125,6 @@ The only real rule I'm enforcing is that no new library dependencies can be adde
 Scalene is heavily influenced by Tumblr's [Colossus](https://github.com/tumblr/colossus) framework, of which I was also the creator and lead developer.  Scalene is not a fork of Colossus, but instead more like a re-imagining with some fairly fundamental design changes.  
 
 The vast majority of Scalene was written from scratch, but some code is copied over from Colossus, which I've detailed in the [NOTICE](NOTICE) file and have included appropriate attribution in the relevant files.
-
-
-## Benchmarks
-
-Scalene is already really fast.  
-
-Once it's in a more complete state and I start publishing artifacts Scalene
-will be entered into the techempower benchmarks.  For now, here's the results
-of some benchmarks I've run myself:
-
-This test hits the `/plaintext` route in the included benchmark example.  I used whatever was in master in
-the Techempower repo at the time with no modifications except frameworks were
-limited to 1 I/O thread.  I used wrk with 75 connections, 2 threads, pipeline
-depth of 16.  Benchmarks were run on my 4-core Intel 6700K 4.0Ghz desktop
-running Windows 10 with WSL.
-
-framework| requests/second
---- | ---
-Scalene | 661,068
-Rapidoid | 595,252
-Colossus | 357,922
 
 ## License
 
