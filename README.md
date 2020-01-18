@@ -33,12 +33,21 @@ val sumRoute = "sum" / ![Int] / ![Int] to {case (a,b) =>
 //easily define custom extractors
 def nonZeroInt(name: String) = ![Int].filter{_ != 0, s"${name} must be nonzero"}
 
-val quotientRoute = "quotient" / ![Int] / nonZeroInt("dividend") to {case (a,b) =>
+val Dividend = nonZeroInt("dividend")
+
+//once you define an extractor, you can use it to extract data from any part of the request...
+
+//extract from the path
+val quotientRoute = "quotient" / ![Int] / Dividend to {case (a,b) =>
   (a / b).ok
 }
 
+//or extract from other parts
+val otherQuotientRoute = "other-quotient" + ?("divisor", ![Int]) + Header("dividend", Dividend) to {(_ / _).ok}
+
+
 //now build trees of routes
-val calcRoutes = GET / "calc" / List(sumRoute, quotientRoute)
+val calcRoutes = GET / "calc" / List(sumRoute, quotientRoute, otherQuotientRoute)
 
 Routing.start(settings, Routes(calcRoutes))
 ```
@@ -48,6 +57,9 @@ Routing.start(settings, Routes(calcRoutes))
 
 >curl localhost:8080/calc/quotient/5/0
 (400 BAD_REQUEST) dividend must be nonzero
+
+>curl localhost:8080/calc/other-quotient?divisor=4
+(400 BAD_REQUEST) missing required header 'dividend'
 ```
 It's also easy to open connections to remote systems
 
