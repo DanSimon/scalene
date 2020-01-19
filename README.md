@@ -46,13 +46,13 @@ val quotientRoute = "quotient" / ![Int] / Dividend to {case (a,b) =>
 //or extract from other parts
 val otherQuotientRoute = {
   //routes are built as a combination of parsers
-  val path        = Path("other-quotient")
-  val queryParam  = Parameter("divisor", ![Int])
-  val header      = Header("dividend", Dividend) 
+  val path: RouteBuilder[Unit]          = Path("other-quotient")
+  val queryParam: RouteBuilder[Int]     = Parameter("divisor", ![Int])
+  val header: RouteBuilder[NonZeroInt]  = Header("dividend", Dividend) 
 
   //parser composition is always type-safe
   val incompleteRoute:RouteBuilder[(Int, NonZeroInt)]  =  (path + queryParam + header) 
-  incompleteRoute to {(a,b) => (a / b.value).ok}
+  incompleteRoute to {case (a,b) => (a / b.value).ok}
 }
 
 
@@ -71,6 +71,7 @@ Routing.start(settings, Routes(calcRoutes))
 >curl localhost:8080/calc/other-quotient?divisor=4
 (400 BAD_REQUEST) missing required header 'dividend'
 ```
+
 It's also easy to open connections to remote systems
 
 ```scala

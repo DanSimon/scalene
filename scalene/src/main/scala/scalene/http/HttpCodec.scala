@@ -129,6 +129,7 @@ trait HttpMessageDecoder extends LineParser {
       if (!parsingHead) {
         if (!currentStreamManager.isDone) {
           currentStreamManager.push(buffer)
+          //FIXME: this is wrong
           currentSize += buffer.bytesRead
         }
         //we have to immediately check again since it could be the end of the
