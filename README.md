@@ -72,33 +72,7 @@ Routing.start(settings, Routes(calcRoutes))
 (400 BAD_REQUEST) missing required header 'dividend'
 ```
 
-It's also easy to open connections to remote systems
-
-```scala
-val cache = Memcache.client("memcache-host", 1211)
-
-def slowFib(n) = n match {
-  case 1 | 2 => 1
-  case n => fib(n - 1) + fib(n - 2)
-}
-
-val PositiveInt = ![Int]("num")
-  .filter(_ > 0, "num must be positive")
-
-val fibRoute = GET / "fibonacci" / PositiveInt to {n => 
-  cache.get(s"fib_$n").map{
-    case Some(cached) => cached.ok
-    case None => for {
-      result <- Async(slowFib(n))
-      _      <- memcache.set(s"$fib_n", result.toString)
-    } yield result.ok
-  }
-}
-
-Routing.start(settings, Routes(fibRoute))
-```
-
-Hopefully that gives you an idea of what this is all about.
+This is just the basics, but hopefully that gives you an idea of what this is all about.
 ## Features
 
 * **It's really fast!** - Scalene is built from the ground up for low-latency network I/O and follows the design philosophy of _maximizing concurrency while minimizing parallelism_.  When possible, all I/O relative to a single operation is single-threaded.  When writing services you don't have to think about this though, Scalene does all the optimization and thread-management under the hood.
