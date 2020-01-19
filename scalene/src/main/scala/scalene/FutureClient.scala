@@ -18,12 +18,33 @@ class FutureClient[Request, Response](
 
   val eventLoop = new EventLoop(timeKeeper, receiver)
 
-  val client = eventLoop.attachAndConnect[BasicClient[Request,Response]](config.address, factory)
+  sealed trait ReceiverMessage
+  case class AsyncRequest(request: Request, promise: Promise[Response]) extends ReceiverMessage
+  case class ClientReady(client: BasicClient[Request, Response]) extends ReceiverMessage
 
-  case class AsyncRequest(request: Request, promise: Promise[Response])
+  val sender = {
+    var client: Option[BasicClient[Request, Response]] = None
+    val buffer = new java.util.LinkedList[AsyncRequest]()
+    SimpleReceiver[ReceiverMessage]{
+      case ClientReady(c) => {
+        client = Some(c)
+        while (!buffer.isEmpty) {
+          val n = buffer.remove()
+          c.send(n.request).onComplete{t => n.promise.complete(t)}
+        }
+      }
+      case a @ AsyncRequest(request, promise) => {
+        client match {
+          case Some(c) => c.send(request).onComplete{t => promise.complete(t)}
+          case None => buffer.add(a)
+        }
+      }
+    }
+  }
 
-  val sender = SimpleReceiver[AsyncRequest]{req =>
-    client.send(req.request).onComplete{t => req.promise.complete(t)}
+  dispatcher.execute {
+    val client = eventLoop.attachAndConnect[BasicClient[Request,Response]](config.address, factory)
+    sender.send(ClientReady(client))
   }
 
   def send(request: Request): Future[Response] = {

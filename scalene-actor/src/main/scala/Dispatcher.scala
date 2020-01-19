@@ -70,7 +70,7 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
       actors.put(actor.id, actor)
       actor.start()
     }
-
+    case ExecuteMessage(ex) => ex()
   }
 
   class Looper extends Thread(name) {
@@ -103,6 +103,10 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
     //notice that we return the actor before it's attached and started, but that's ok because the attach message will arrive
     //before any user-sent messages
     actor
+  }
+
+  def execute(f: => Unit): Unit = {
+    queueMessage(ExecuteMessage(() => f))
   }
 
 }

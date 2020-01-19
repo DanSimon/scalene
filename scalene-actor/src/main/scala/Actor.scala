@@ -72,6 +72,9 @@ trait UntypedAttachActorMessage extends DispatcherMessage {
 case class AttachActorMessage[T](actor: Actor[T]) extends UntypedAttachActorMessage
 
 case class ActorMetaActionMessage(actor: UntypedActorHandle, action: ActorMetaAction) extends DispatcherMessage
+
+case class ExecuteMessage(executor: () => Unit) extends DispatcherMessage
+
 case object ShutdownDispatcher extends DispatcherMessage
 
 class ActorHandle[T](
