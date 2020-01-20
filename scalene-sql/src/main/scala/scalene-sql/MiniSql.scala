@@ -18,8 +18,9 @@ case class MiniSQLConfig(
 object MiniSQL {
 
 
-  def client(connectionName: String, host: String, username: String, password: String)(implicit pool: Pool): MiniSQLClient = {
-    val config = MiniSQLConfig(host, username, password, 48)
+  def client(connectionName: String, host: String, username: String, password: String, numWorkers: Option[Int] = None)(implicit pool: Pool): MiniSQLClient = {
+    val workers = numWorkers.getOrElse(Runtime.getRuntime.availableProcessors())
+    val config = MiniSQLConfig(host, username, password, workers)
     new MiniSQLClient(connectionName, config)
   }
 
@@ -54,50 +55,37 @@ class MiniSQLSession(connection: Connection) {
 class MiniSQLClient(connectionName: String, config: MiniSQLConfig)(implicit pool: Pool) {
 
 
-  trait QueryExecutor {
+  private trait QueryExecutor {
     def execute(session: MiniSQLSession): Unit
   }
 
-  class SimplePromise[T] {
-    var result: Option[Try[T]] = None
-  }
-
-  class WrappedQuery[T](runner: MiniSQLSession => T, promise: SimplePromise[T]) extends QueryExecutor {
+  private class WrappedQuery[T](runner: MiniSQLSession => T, promise: Try[T] => Unit) extends QueryExecutor {
     def execute(session: MiniSQLSession): Unit = try {
-      promise.result = Some(Success(runner(session)))
+      promise(Success(runner(session)))
     } catch {
       case e: Exception => {
-        promise.result = Some(Failure(e))
+        promise(Failure(e))
       }
     }
   }
 
-  class MiniSQLConnection(config: MiniSQLConfig)(implicit pool : Pool) extends ExternalBlockingClient[QueryExecutor, Unit] {
-
-    private val connection = DriverManager.getConnection(config.url, config.username, config.password)
-    private val session = new MiniSQLSession(connection)
-
-    def sendBlocking(query: QueryExecutor): Try[Unit] = {
-      query.execute(session)
-      Success(())
-    }
+  private def miniSQLConnection(config: MiniSQLConfig) = {
+    val connection = DriverManager.getConnection(config.url, config.username, config.password)
+    val session = new MiniSQLSession(connection)
+    implicit val d = pool.createDispatcher("minisql-client")
+    SimpleReceiver[QueryExecutor](_.execute(session))
   }
 
-  val blockingClients = Array.fill(config.numConnections)(new MiniSQLConnection(config))
+  private val blockingClients = Array.fill(config.numConnections)(miniSQLConnection(config))
 
-  val nextIndex = new java.util.concurrent.atomic.AtomicLong(0)
+  private val nextIndex = new java.util.concurrent.atomic.AtomicLong(0)
 
-  def query[T](q: MiniSQLSession => T): Deferred[T] = {
-    val sp = new SimplePromise[T]
-    val wrapped = new WrappedQuery(q, sp)
-    blockingClients(nextIndex.incrementAndGet().toInt % blockingClients.length).send(wrapped).flatMap{_ => sp.result.get match {
-      case Success(r) => Deferred.successful(r)
-      case Failure(ex) => Deferred.failure(ex)
-    }}
+  def query[T](q: MiniSQLSession => T): Deferred[T] = defer { context =>
+    val (promise, async) = context.threadSafePromise[T]()
+    val wrapped = new WrappedQuery(q, promise)
+    blockingClients(nextIndex.incrementAndGet().toInt % blockingClients.length).send(wrapped)
+    async
   }
-
-
-
 
 }
 

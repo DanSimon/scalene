@@ -125,7 +125,7 @@ The vast majority of Scalene was written from scratch, but some code is copied o
 
 ## License
 
-Copyright 2019 Dan Simon
+Copyright 2020 Dan Simon
 
 Scalene is published under the MIT license.
 
