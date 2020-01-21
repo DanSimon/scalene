@@ -48,6 +48,7 @@ val benchmarkSettings = baseSettings ++ Seq(
 
 lazy val `scalene-sql` = project
   .dependsOn(scalene)
+  .settings(baseSettings)
   .settings(Seq(
     libraryDependencies += "org.scalikejdbc" %% "scalikejdbc"        % "3.4.+"    
   ))
