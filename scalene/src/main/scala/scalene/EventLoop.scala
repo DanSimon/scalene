@@ -45,15 +45,21 @@ class EventLoop(
   val environment = new AsyncContextImpl(timeKeeper, timer, dispatcher, this)
 
   private val selectActor: Actor[Select.type] = SimpleReceiver[Select.type]{_ => 
-    select()
-    coSelect.send(Select)
+    processSelect()
+    if (selector.selectNow() > 0) {
+      selectActor.send(Select)
+    } else {
+      coSelect.send(Select)
+    }
   }
 
+  val selectDispatcher = dispatcher.pool.createDispatcher("selector-{ID}")
   //this is needed because if the worker sends Select to itself it doesn't
   //yield execution to other actors
   private val coSelect: Actor[Select.type] = {
-    dispatcher.attach(new Receiver[Select.type](_) {
+    selectDispatcher.attach(new Receiver[Select.type](_) {
       def receive(m: Select.type) {
+        selector.select()
         selectActor.send(Select)
       }
     })
@@ -72,13 +78,8 @@ class EventLoop(
     _nextId
   }
 
-  dispatcher.addWakeLock(new WakeLock {
-    def wake(): Unit = {
-      selector.wakeup()
-    }
-  })
-
   private def attachInternal(channel: SocketChannel, handler: ConnectionHandler, immediatelyConnected: Boolean, keyInterest: Int): Unit = {
+    selector.wakeup()
     val key = channel.register(selector, keyInterest)
     val handle = new LiveChannelHandle(channel, key, timeKeeper)
     val manager = new ConnectionManager(nextId(), handler, handle)
@@ -97,9 +98,9 @@ class EventLoop(
     handler
   }
 
-  //TODO: handlerF probably doesn't need to be a function since it should be
-  //the case that anywhere this is called should already have access to the
-  //environment
+  /**
+   * WARNING - not thread-safe.  Should only be called from within the context of the event loop's dispatcher
+   */
   def attachAndConnect[T <: ConnectionHandler](address: InetSocketAddress, handlerF: AsyncContext => T): T = {
     val channel = SocketChannel.open()
     channel.configureBlocking(false)
@@ -134,8 +135,7 @@ class EventLoop(
     }
   }
 
-  private def select() {
-    selector.select()
+  private def processSelect() {
     timeKeeper.refresh()
     val selectedKeys  = selector.selectedKeys.iterator
     while (selectedKeys.hasNext) {
@@ -149,6 +149,7 @@ class EventLoop(
         } catch {
           case t: Throwable => {
             error(s"Error while connecting, $t")
+            t.printStackTrace()
             removeConnection(con, DisconnectReason.ClientConnectFailed(t))
             key.cancel()
           }

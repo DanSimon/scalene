@@ -79,7 +79,7 @@ class DeferredClient[Request, Response](
 }
 
 class DeferredExecutor(implicit p: Pool) {
-  implicit val dispatcher = p.createDispatcher
+  implicit val dispatcher = p.createDispatcher("deferred-executor-{ID}")
   private val timeKeeper = new RealTimeKeeper
 
   private val receiver = SimpleReceiver[EventLoopEvent]{e => ()}

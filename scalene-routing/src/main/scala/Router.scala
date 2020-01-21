@@ -15,10 +15,10 @@ object Routing {
 
       def handleRequest(request: HttpRequest): Async[HttpResponse] = routes(new RequestContext(request)) match {
         case Right(f) => f.resolve(context)
-        case Left(reason) => Async.successful(HttpResponse(reason.reason.code, Body.plain(reason.message)))
+        case Left(reason) => Async.successful(HttpResponse(reason.reason.code, http.Body.plain(reason.message)))
       }
 
-      def handleError(request: Option[HttpRequest], error: Throwable) = HttpResponse(ResponseCode.Error, Body.plain(error.toString))
+      def handleError(request: Option[HttpRequest], error: Throwable) = HttpResponse(ResponseCode.Error, http.Body.plain(error.toString))
 
     })
 

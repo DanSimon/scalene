@@ -16,6 +16,11 @@ trait LPAsResponse {
     def apply(t: In): Deferred[Out] = Deferred.successful(t)
   }
 
+  implicit def liftDeferredIdentity[Out, In <: Out] = new AsResponse[Deferred[In], Out] {
+    @inline
+    def apply(t: Deferred[In]): Deferred[Out] = t.map{x => x}
+  }
+
 }
 
 object AsResponse extends LPAsResponse{

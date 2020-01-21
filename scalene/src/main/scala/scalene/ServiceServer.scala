@@ -44,7 +44,11 @@ class ServiceServer[I,O](
     pendingRequests.size > 0 && pendingRequests.peek.result.isDefined
   }
   protected def nextOutputItem(): O = {
-    pendingRequests.remove.result.get.get
+    //TODO, failure should include request
+    pendingRequests.remove.result.get match {
+      case Success(value) => value
+      case Failure(ex) => requestHandler.handleError(None, ex)
+    }
   }
 
   protected def onOutputError(reason: Throwable): Unit = {

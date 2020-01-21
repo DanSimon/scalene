@@ -32,7 +32,7 @@ object HttpResponse {
 
 trait ResponseBuilding {
 
-  implicit class BuildToHttpResponse[T](item: T)(implicit builder: BodyFormatter[T]) {
+  implicit class BuildToHttpResponse[T, U >: T](item: T)(implicit builder: BodyFormatter[U]) {
 
     def withCode(code: ResponseCode) : BasicHttpResponse = BasicHttpResponse(code, Headers.Empty, builder(item))
 

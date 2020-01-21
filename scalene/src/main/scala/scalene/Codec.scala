@@ -8,6 +8,12 @@ trait MessageDecoder[T] {
       decode(data)
     }
   }
+
+  def messagesDecoded: Long
+  def currentMessageSize: Long
+
+
+
   def endOfStream()
 }
 

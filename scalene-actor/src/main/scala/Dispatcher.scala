@@ -1,71 +1,40 @@
 package scalene.actor
 
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, LinkedBlockingQueue}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 import java.lang.Thread
-
-sealed trait ControlMessage
-case object ControlMessage {
-  case class Stop(actor: UntypedActorHandle) extends ControlMessage
-  case object Shutdown extends ControlMessage
-}
-
-//if an actor is using a blocking resource that can be woken externally (like
-//an NIO selector), this can be used
-trait WakeLock {
-  def wake()
-}
-
 
 trait Dispatcher {
   def shutdown(): Unit
   def pool: Pool
 
   def id: Int
-  def addWakeLock(lock: WakeLock)
   def attach[T](actorFactory: Context => Receiver[T]): Actor[T]
 }
 
-class DispatcherImpl(val pool: Pool, val id: Int) extends Dispatcher {
+class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Dispatcher {
 
   private val nextId = new AtomicLong()
   private val actors = new ConcurrentHashMap[Long, UntypedActorHandle]()
 
-  private val actorsWithWork = new ConcurrentLinkedQueue[UntypedActorHandle]()
+  private val messageQueue = new LinkedBlockingQueue[DispatcherMessage]()
+
+  def queueMessage(message: DispatcherMessage): Unit = {
+    messageQueue.add(message)
+  }
+
+  def nextActorId: Long = nextId.incrementAndGet
 
   private val running = new AtomicBoolean(true)
-
-  /*
-   * This is the definitive truth for how many actors have messages to process.
-   * This avoids race conditions where the dispatcher is notified of an actor
-   * with work to do but the actor itself isn't yet added to actorsWithWork
-   */
-  private val numActive = new AtomicLong(0L)
-
-  private val wakeLocks = new collection.mutable.ArrayBuffer[WakeLock]()
-
-  def addWakeLock(lock: WakeLock) = synchronized {
-    wakeLocks.append(lock)
-  }
-
-  def wake(): Unit = {
-    wakeLocks.foreach{_.wake()}
-  }
-
-  val max = 100
 
   val thread = new Looper
   thread.setDaemon(false)
   thread.start
-  val controller = attach(new Controller(_))
   val threadId = thread.getId
 
   def shutdown() {
     running.set(false)
-    controller.send(ControlMessage.Shutdown)
-    thread.lock.synchronized {
-      thread.lock.notify()
-    }
+    thread.interrupt()
   }
 
   private def stopActor(actor: UntypedActorHandle) {
@@ -79,66 +48,43 @@ class DispatcherImpl(val pool: Pool, val id: Int) extends Dispatcher {
       it.next.kill()
     }
     actors.clear()
-    actorsWithWork.clear()
-    numActive.set(0)
   }
 
-  class Controller(context: Context) extends Receiver[ControlMessage](context) {
-    def receive(m: ControlMessage) = m match {
-      case ControlMessage.Stop(actor) => stopActor(actor)
-      case ControlMessage.Shutdown => {
-        running.set(false)
-        finishShutdown()
-        wake()
+  private def processDispatcherMessage(d: DispatcherMessage): Unit = d match {
+
+    case p: UntypedActorMessageProcessor => try {
+      p.process()
+    } catch {
+      case e: Exception => {
+        p.actor.restart(e)
       }
     }
+    case a: ActorMetaActionMessage => a.action match {
+      case ActorMetaAction.StopActor => stopActor(a.actor)
+    }
+    case ShutdownDispatcher => {
+      running.set(false)
+    }
+    case a: UntypedAttachActorMessage => {
+      val actor = a.actor
+      actors.put(actor.id, actor)
+      actor.start()
+    }
+    case ExecuteMessage(ex) => ex()
   }
 
-  
-
-  class Looper extends Thread {
+  class Looper extends Thread(name) {
 
     val lock = new Object
 
     override def run() : Unit = {
       while (running.get()) {
-        var pollAttempts = 0
-        var continue = true
-        while (continue) {
-          val actor = actorsWithWork.poll
-          //its possible we polled too early
-          if (actor == null) {
-            pollAttempts += 1
-            if (pollAttempts == 50) {
-              continue = numActive.get() > 0
-              pollAttempts = 0
-            }
-          } else actor.process(max) match {
-            case ProcessResult.ProcessMore => {
-              actorsWithWork.add(actor)
-            }
-            case ProcessResult.ProcessEnd => {
-              continue = numActive.decrementAndGet() > 0
-            }
-            case ProcessResult.ActorStopped => {
-              stopActor(actor)
-              continue = numActive.decrementAndGet() > 0
-            }
-          }
-        }
-        if (running.get()) {
-          lock.synchronized {
-            try {
-              if (numActive.get() == 0) lock.wait()
-            } catch {
-              case e: InterruptedException => {
-                running.set(false)
-              }
-              case e: Exception => {
-                //the world is ending!
-                running.set(false)
-              }
-            }
+        try {
+          processDispatcherMessage(messageQueue.take())
+        } catch {
+          case e: InterruptedException => {}
+          case e: Exception => {
+            running.set(false)
           }
         }
       }
@@ -149,24 +95,18 @@ class DispatcherImpl(val pool: Pool, val id: Int) extends Dispatcher {
       }
 
     }
-
-
   }
 
   def attach[T](receiver: Context => Receiver[T]): Actor[T] = {
-    val actor = new ActorHandle[T](this, receiver, nextId.incrementAndGet)
-    actors.put(actor.id, actor)
-    actor.start()
+    val actor = new ActorHandle[T](this, receiver, this.nextActorId) 
+    queueMessage(AttachActorMessage(actor))
+    //notice that we return the actor before it's attached and started, but that's ok because the attach message will arrive
+    //before any user-sent messages
     actor
   }
 
-  def notify(notifier: UntypedActorHandle) =  {
-    actorsWithWork.add(notifier)
-    val num = numActive.incrementAndGet()
-    thread.lock.synchronized {
-      thread.lock.notifyAll()
-    }
-    //}
+  def execute(f: => Unit): Unit = {
+    queueMessage(ExecuteMessage(() => f))
   }
 
 }

@@ -15,7 +15,7 @@ class TimerSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
   }
 
   it should "work" in {
-    implicit val d = pool.createDispatcher
+    implicit val d = pool.createDispatcher("asdf")
     val promise = Promise[String]()
     val timer = new Timer
     SimpleReceiver[String](str => timer.schedule(100){promise.success(str)}).send("done")

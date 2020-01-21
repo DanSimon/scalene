@@ -14,11 +14,12 @@ trait NoWakeMessage
 
 trait UntypedActorHandle {
   def kill(): Unit
+  def start(): Unit
   def stop(): Unit
-  def process(max: Int): ProcessResult
   def id: Long
   def untypedReceiver: UntypedReceiver
   def dispatcher: Dispatcher
+  def restart(exception: Exception): Unit
 }
 
 trait Actor[T] extends UntypedActorHandle {
@@ -27,13 +28,6 @@ trait Actor[T] extends UntypedActorHandle {
   def specialize[U <: T]: Actor[U] = this.asInstanceOf[Actor[U]]
 
 }
-/*
-object Actor {
-  def empty[T]: Actor[T] = new Actor[T]{
-    def send(message: T) = true
-  }
-}
-*/
 
 
 sealed trait ActorState
@@ -51,6 +45,38 @@ object ProcessResult {
   case object ActorStopped extends ProcessResult
 }
 
+//this is the object put into the dispatcher's queue.
+
+sealed trait DispatcherMessage
+
+trait UntypedActorMessageProcessor extends DispatcherMessage{
+  def actor: UntypedActorHandle
+  def process(): Unit
+}
+
+case class ActorMessageProcessor[T](actor: ActorHandle[T], message: T) extends UntypedActorMessageProcessor {
+  def process(): Unit = {
+    actor.receiver.receive(message)
+  }
+}
+
+sealed trait ActorMetaAction
+object ActorMetaAction {
+  case object StopActor extends ActorMetaAction
+}
+
+trait UntypedAttachActorMessage extends DispatcherMessage {
+  def actor: UntypedActorHandle
+}
+
+case class AttachActorMessage[T](actor: Actor[T]) extends UntypedAttachActorMessage
+
+case class ActorMetaActionMessage(actor: UntypedActorHandle, action: ActorMetaAction) extends DispatcherMessage
+
+case class ExecuteMessage(executor: () => Unit) extends DispatcherMessage
+
+case object ShutdownDispatcher extends DispatcherMessage
+
 class ActorHandle[T](
   val dispatcher: DispatcherImpl,
   val receiverF: Context => Receiver[T],
@@ -59,16 +85,14 @@ class ActorHandle[T](
 
   val context: Context = new Context(this.asInstanceOf[Actor[Any]], dispatcher)
 
-  private val queue = new ConcurrentLinkedQueue[T]()
   private var _state: ActorState = ActorState.Starting
+  private var _sendable: Boolean = true
   private var currentReceiver = receiverF(context)
   def receiver = currentReceiver
 
-  private val processing = new AtomicBoolean(false)
-
   def untypedReceiver = receiver
 
-  private def restart(exception: Exception) {
+  def restart(exception: Exception) {
     currentReceiver.onBeforeRestart(exception)
     currentReceiver = receiverF(context)
     currentReceiver.onStart()
@@ -82,125 +106,19 @@ class ActorHandle[T](
 
   def stop() {
     _state = ActorState.Stopping
-    //receiver.onStop()
-    if (queue.isEmpty) {
-      _state = ActorState.Stopped
-      dispatcher.controller.send(ControlMessage.Stop(this))
-    }
+    _sendable = false
+    dispatcher.queueMessage(ActorMetaActionMessage(this, ActorMetaAction.StopActor))
   }
 
-
-  def send(message: T) : Boolean = if (_state == ActorState.Alive) {
-    val toNotify = (queue.peek == null) 
-    queue.add(message)
-    if (toNotify) {
-      if (!message.isInstanceOf[NoWakeMessage]) {
-        dispatcher.wake()
-      }
-      dispatcher.notify(this)
-    }
+  def send(message: T) : Boolean = if (_sendable) {
+    dispatcher.queueMessage(ActorMessageProcessor(this, message))
     true
   } else false
 
-  /*
-   * returns true if there's more work to do
-   */
-  def process(max: Int): ProcessResult = {
-    processing.set(true)
-    var num = 0
-    while (num < max && !queue.isEmpty) {
-      try {
-        receiver.receive(queue.poll)
-      } catch {
-        case e: Exception => restart(e)
-      }
-    }
-    processing.set(false)
-    if (queue.isEmpty) {
-      if (_state == ActorState.Stopping) {
-        _state = ActorState.Stopped
-        ProcessResult.ActorStopped
-      } else {        
-        ProcessResult.ProcessEnd
-      }
-      
-    } else ProcessResult.ProcessMore
-  }
-
   def kill() = {
-    queue.clear()
     _state = ActorState.Stopped
+    _sendable = false
     receiver.onStop() //maybe indicate somehow that its being killed vs shutdown
   }
 }
-
-
-class Context private[actor](untypedself: Actor[Any], _dispatcher: Dispatcher) {
-  private[actor] def retypeSelf[T] = untypedself.asInstanceOf[Actor[T]]
-
-  implicit val dispatcher = _dispatcher
-}
-
-trait UntypedReceiver {
-  def onStop(): Unit = {}
-
-}
-
-abstract class Receiver[T](context: Context) extends UntypedReceiver {
-
-  val self = context.retypeSelf[T]
-  val dispatcher = context.dispatcher
-
-  def receive(message: T): Unit
-
-  def onStart(): Unit = {}
-  def onBeforeRestart(exception: Exception): Unit = {}
-  def onAfterRestart(): Unit = {}
-
-}
-
-
-class Pool {
-  
-  val id = System.nanoTime
-
-  private val nextId = new AtomicLong(0)
-
-  private val dispatchers = new collection.mutable.Queue[DispatcherImpl]
-
-  def createDispatcher = synchronized {
-    val d = new DispatcherImpl(this, nextId.incrementAndGet.toInt)
-    dispatchers.enqueue(d)
-    d
-  }
-
-  def shutdown(): Unit = synchronized {
-    dispatchers.foreach{_.shutdown}
-  }
-
-  def join()  = synchronized {
-    while (!dispatchers.isEmpty) {
-      try {
-        //need to keep the head in the queue until its dead
-        dispatchers.head.thread.join
-        dispatchers.dequeue
-      } catch {
-        case e: Exception => println(e.toString)
-      }
-    }
-  }
-
-
-}
-
-
-class SimpleReceiver[T](val context: Context, val receiver: T => Unit) extends Receiver[T](context) {
-
-  def receive(t: T): Unit = receiver(t)
-
-}
-object SimpleReceiver {
-  def apply[T](r: T => Unit)(implicit dispatcher: Dispatcher): Actor[T] = dispatcher.attach(new SimpleReceiver(_, r))
-}
-
 

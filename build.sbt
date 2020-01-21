@@ -1,11 +1,11 @@
 
 val baseSettings = Seq(
   organization := "io.dsimon",
-  addCompilerPlugin("io.tryp" % "splain" % "0.3.1" cross CrossVersion.patch),
   publishMavenStyle := true,
   publishArtifact in Test := false,
-  scalaVersion := "2.12.6",
   version := "0.1.1-SNAPSHOT",
+  scalaVersion := "2.12.10",
+  addCompilerPlugin("io.tryp" % "splain" % "0.5.0" cross CrossVersion.patch),
   libraryDependencies ++= Seq(
     "ch.qos.logback"               %  "logback-classic"      % "1.2.2",
     "org.slf4j"              %  "slf4j-api"                   % "1.7.6",
@@ -25,7 +25,7 @@ lazy val noPubSettings = Seq(
 
 lazy val root = (project in file("."))
   .settings(baseSettings)
-  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples, `scalene-tests`)
+  .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples, `scalene-tests`, `scalene-sql`)
 
 lazy val `scalene-actor` = project
   .settings(baseSettings)
@@ -59,12 +59,25 @@ val benchmarkSettings = baseSettings ++ Seq(
   )
 )
 
+lazy val `scalene-sql` = project
+  .dependsOn(scalene)
+  .settings(baseSettings)
+  .settings(Seq(
+    libraryDependencies += "org.scalikejdbc" %% "scalikejdbc"        % "3.4.+"    
+  ))
+
 lazy val benchmark = project
-  .dependsOn(scalene, `scalene-routing`)
+  .dependsOn(scalene, `scalene-routing`, `scalene-sql`)
   .settings(benchmarkSettings)
   .settings(noPubSettings)
+  .settings(Seq(
+    libraryDependencies += "org.postgresql" % "postgresql"        % "42.2.0"    
+  ))
 
 lazy val examples = project
-  .dependsOn(`scalene-routing`)
+  .dependsOn(`scalene-routing`, `scalene-sql`)
   .settings(baseSettings)
   .settings(noPubSettings)
+  .settings(Seq(
+    libraryDependencies += "org.postgresql" % "postgresql"        % "42.2.0"    
+  ))

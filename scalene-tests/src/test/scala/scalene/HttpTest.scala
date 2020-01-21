@@ -30,7 +30,11 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
   def withPool[T](f: Pool => Future[T]): Future[T] = {
     val p = new Pool
     val future = f(p)
-    future.onComplete{_ => p.shutdown}
+    future.map{x => 
+      p.shutdown
+      p.join
+      x
+    }
     future
   }
 
@@ -41,7 +45,7 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     f(client)
   }
 
-  it should "receive a request" taggedAs(org.scalatest.Tag("test")) in  { 
+  it should "receive a request"  in  { 
     val routes = Routes(
       GET / "test"  as "foo".ok
     )
@@ -63,7 +67,7 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     }
   }
 
-  it should "receive a streamed body" in {
+  it should "receive a streamed body" taggedAs(org.scalatest.Tag("test")) in {
     val routes = Routes(
       GET / "test" to {_ => scalene.stream.Stream.fromIter(List("a", "b", "c").toIterator).ok}
     )

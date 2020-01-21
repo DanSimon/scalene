@@ -96,7 +96,7 @@ class ServerActor(
   override def onStart() {
     super.onStart()
     (1 to settings.numWorkers.getOrElse(Runtime.getRuntime.availableProcessors())).foreach{i =>
-      val dispatcher = context.dispatcher.pool.createDispatcher
+      val dispatcher = context.dispatcher.pool.createDispatcher(s"worker-$i")
       val actor: Actor[ServerToWorkerMessage] = dispatcher.attach(ctx => new ServerWorker(
         self.specialize[WorkerToServerMessage],
         handlerFactory,
@@ -107,11 +107,6 @@ class ServerActor(
 
     }
     startServer()
-    context.dispatcher.addWakeLock(new WakeLock {
-      def wake(): Unit = {
-        selector.wakeup()
-      }
-    })
     self.send(SelectNow)
   }
 
@@ -142,7 +137,7 @@ class ServerActor(
   def receive(s: ServerMessage) : Unit = s match {
     case SelectNow => {
       select()
-      coSelect.send(SelectNow)
+      self.send(SelectNow)
     }
     case WorkerToServerMessage.ConnectionClosed => {
       openConnections -= 1
@@ -206,7 +201,7 @@ class Server(stateReader: AtomicReference[ServerState], actor: Actor[ExternalSer
 object Server {
 
   def start(settings: ServerSettings, factory: AsyncContext => ServerConnectionHandler, timeKeeper: TimeKeeper)(implicit pool: Pool): Server = {
-    val dispatcher = pool.createDispatcher
+    val dispatcher = pool.createDispatcher("server-{ID}")
     val state = new AtomicReference[ServerState](ServerState.Starting)
     val actor = dispatcher
       .attach(ctx => new ServerActor(settings, factory, timeKeeper, state, ctx))

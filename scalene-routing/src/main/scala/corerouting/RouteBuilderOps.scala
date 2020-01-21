@@ -22,12 +22,14 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
     /**
      * Combine two things that can become cell components, which would be either
      * a parser or a filter
+     *
+     * Note - The order of implicit parameters here is really important, putting fuse first causes failures :/
      */
     implicit def comCom[A, B , CA , CB](
       implicit 
-      fuse: Fuse[A,B],
       asA: AsCellComponent[I, A, CA],
-      asB: AsCellComponent[I, B, CB]
+      asB: AsCellComponent[I, B, CB],
+      fuse: Fuse[A,B]
     ) = new RouteBuilderCombiner[CA, CB] {
       type Out = RouteBuilder[fuse.Out]
       def apply(a: CA, b: CB): RouteBuilder[fuse.Out] = {
@@ -61,6 +63,7 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
 
   implicit class CombineTo[A](val a: A) {
     def +[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
+    def and[B](b: B)(implicit com: RouteBuilderCombiner[A,B]): com.Out = com(a,b)
   }
 
   implicit class AsRouteBuilderOps[P, O](p: P)(implicit as: AsRouteBuilder.Aux[P, O])
