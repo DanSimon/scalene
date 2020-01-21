@@ -36,7 +36,6 @@ object Main extends App {
   
   implicit val pool = new Pool
   val worldClient = MiniSQL.client("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass", None)
-  //val worldClient = MiniSQL.client2("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass", 30)
 
   val random = new java.util.Random
   

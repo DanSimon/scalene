@@ -40,20 +40,19 @@ with PathParsing with ResponseBuilding {
   /**
    * wildcard Accept-all path parser, should be used at the end of a path.
    */
-  /*
-  val * : PathParser[HNil] = new PathParser[HNil] {
-    def parse(components: PathIn) = Right(HNil)
+  val * = new Parser[RequestContext, Unit] {
+    def parse(req: RequestContext): Result[Unit] = {
+      while (req.hasNext) { req.next }
+      Right(())
+    }
   }
-  */
 
   /**
    * Similar to the `*` parser but also captures the remainder as a string
    */
-  /*
-  val !* : PathParser[String] = new PathParser[String] {
-    def parse(components: PathIn) = Right(components.mkString("/"))
+  val !* = new Parser[RequestContext,String] {
+    def parse(req: RequestContext): Result[String] = Right(req.mkString("/"))
   }
-  */
 
   val GET = Method(HttpMethod.Get)
   val POST = Method(HttpMethod.Post)

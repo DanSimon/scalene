@@ -44,12 +44,10 @@ class MiniSQLSession(connection: Connection) {
     stmt
   }
 
-
 }
 
 
 class MiniSQLClient(connectionName: String, config: MiniSQLConfig)(implicit pool: Pool) {
-
 
   private trait QueryExecutor {
     def execute(session: MiniSQLSession): Unit

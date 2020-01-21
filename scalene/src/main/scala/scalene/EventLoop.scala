@@ -17,12 +17,6 @@ object EventLoopEvent {
   case object ConnectionClosed extends EventLoopEvent
 }
 
-/*
-trait EventLoop {
-  def attachConnection(channel: SocketChannel, handler: ConnectionHandler): Unit
-}
-*/
-
 object Select extends NoWakeMessage
 
 class EventLoop(

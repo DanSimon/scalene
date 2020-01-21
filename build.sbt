@@ -3,7 +3,7 @@ val baseSettings = Seq(
   organization := "io.dsimon",
   publishMavenStyle := true,
   publishArtifact in Test := false,
-  version := "0.1.1-SNAPSHOT",
+  version := "0.1.2-SNAPSHOT",
   scalaVersion := "2.12.10",
   addCompilerPlugin("io.tryp" % "splain" % "0.5.0" cross CrossVersion.patch),
   libraryDependencies ++= Seq(

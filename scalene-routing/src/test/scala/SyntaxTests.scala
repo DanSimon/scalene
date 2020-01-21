@@ -56,6 +56,14 @@ class CListTest extends WordSpec with MustMatchers {
 
       val more = route + ?("foo", ![Int])
     }
+
+    "combine with wildcard" in {
+      val route = GET / "foo" / *
+
+      val route2 = GET / "foo" / !*
+
+      route2 to {str => str.toUpperCase.ok}
+    }
   }
 
 }
