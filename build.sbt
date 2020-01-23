@@ -1,9 +1,9 @@
 
 val baseSettings = Seq(
-  organization := "io.dsimon",
+  organization := "io.scalene",
   publishMavenStyle := true,
   publishArtifact in Test := false,
-  version := "0.1.2-SNAPSHOT",
+  version := "0.1.0",
   scalaVersion := "2.12.10",
   addCompilerPlugin("io.tryp" % "splain" % "0.5.0" cross CrossVersion.patch),
   libraryDependencies ++= Seq(
