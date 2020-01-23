@@ -202,6 +202,10 @@ trait Route[II,O] {
                   res = Left(err)
                   i += routes.length
                 }
+                case ErrorReason.Error => {
+                  res = Left(err)
+                  i += routes.length
+                }
               }
               case success => {
                 res = success

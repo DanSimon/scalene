@@ -35,6 +35,10 @@ with PathParsing with ResponseBuilding {
   def ![T]: Extraction[T,T] = ![T]("extraction")
   def ![T](name: String): Extraction[T,T] = IdentityExtraction(name) 
 
+  def optional[A,B](extraction: Extraction[A, B]): Extraction[A, Option[B]] = extraction
+    .map{t => Some(t) : Option[B]}
+    .recover(_ => None)
+
 
 
   /**

@@ -30,6 +30,14 @@ trait Extraction[A,B] {
     }
   }
 
+  def recover(f: ParseError => B): Extraction[A,B] = {
+    val me = this
+    new Extraction[A,B] {
+      def name = me.name
+      def extraction[I](parser: Parser[I,A]): Parser[I, B] = me.extraction(parser).recover(f)
+    }
+  }
+
 }
 
 case class IdentityExtraction[T](name: String) extends Extraction[T, T] {

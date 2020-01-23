@@ -26,6 +26,13 @@ object ErrorReason {
    * will be attempted
    */
   case object BadRequest extends ErrorReason(ResponseCode.BadRequest)
+
+  /**
+   * Indicates some kind of internal error occurred while parsing, causing all
+   * parsing to fail, but not due to an issue with input data
+   */
+  case object Error extends ErrorReason(ResponseCode.Error)
+
 }
 
 /**
@@ -48,4 +55,5 @@ object ParseError {
 
   def badRequest(message: => String): ParseError = ParseError(ErrorReason.BadRequest, () => message)
   def notFound(message: => String): ParseError = ParseError(ErrorReason.NotFound, () => message)
+  def error(message: => String): ParseError = ParseError(ErrorReason.Error, () => message)
 }

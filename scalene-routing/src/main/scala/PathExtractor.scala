@@ -158,11 +158,6 @@ trait PathParsing extends LowPriorityPathParsing {
     def apply(a: ExactMatchPath, b: String): ExactMatchPath = a.copy(prefix = a.prefix.add(b))
   }
 
-  /*
-  implicit def combineExactMatchCell[I, A, C](implicit c: AsCellComponent[I, A, C]) = new RouteBuilderCombiner[ExactMatchPath, C]{
-    type Out = 
-      */
-
   implicit def combineMethodString = new RouteBuilderCombiner[Method, String] {
     type Out = ExactMatchPath
     def apply(a: Method, b: String) = ExactMatchPath(a.method, ConstantPrefixPath(b :: Nil))

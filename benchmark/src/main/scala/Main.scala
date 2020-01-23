@@ -57,7 +57,16 @@ object Main extends App {
     }
   }
 
-  val multiRoute = (GET / "queries") + ?("queries",![Int]) to {num =>
+  val QueryNum = optional(![String]).map{strOpt =>
+    try {
+      val i = strOpt.get.toInt
+      if (i < 1) 1 else if (i > 500) 500 else i
+    } catch {
+      case e: Exception => 1
+    }
+  }
+
+  val multiRoute = (GET / "queries" / QueryNum) to {num =>
     worldClient.query{session =>
       val worlds = new Array[DBRouteMessage](num)
       var i  = 0
