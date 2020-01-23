@@ -11,10 +11,7 @@ val baseSettings = Seq(
     "org.slf4j"              %  "slf4j-api"                   % "1.7.6",
     "org.scalactic" %% "scalactic" % "3.0.5",
     "org.scalatest" %% "scalatest" % "3.0.5" % "test"
-  ),
-  ThisBuild / githubOwner := "DanSimon",
-  ThisBuild / githubRepository := "scalene",
-  ThisBuild / githubTokenSource := Some(TokenSource.Environment("GITHUB_SCALENE_TOKEN"))
+  )
 )
 
 lazy val noPubSettings = Seq(
@@ -25,6 +22,7 @@ lazy val noPubSettings = Seq(
 
 lazy val root = (project in file("."))
   .settings(baseSettings)
+  .settings(noPubSettings)
   .aggregate(`scalene-actor`, `scalene-routing`, scalene, benchmark, examples, `scalene-tests`, `scalene-sql`)
 
 lazy val `scalene-actor` = project
