@@ -97,12 +97,6 @@ object AsCellComponent {
   }
   
 
- /*
- implicit def liftParser[I, A, P <: Parser[I,A]] = new AsCellComponent[I, A, P]{
-   def apply(parser: P): CellComponent[I, A] = CellParser(parser)
- }
- */
-
   implicit def liftFilter[I,A] = new AsCellComponent[I, A, Filter[I,A]] {
     def apply(filter: Filter[I,A]): CellComponent[I,A] = CellFilter(filter)
   }

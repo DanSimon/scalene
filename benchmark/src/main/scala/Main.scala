@@ -57,14 +57,9 @@ object Main extends App {
     }
   }
 
-  val QueryNum = optional(![String]).map{strOpt =>
-    try {
-      val i = strOpt.get.toInt
-      if (i < 1) 1 else if (i > 500) 500 else i
-    } catch {
-      case e: Exception => 1
-    }
-  }
+  val QueryNum = ![Int]
+    .map(i => Math.max(1, Math.min(500, i)))
+    .recover{_ => 1}
 
   val multiRoute = (GET / "queries" / QueryNum) to {num =>
     worldClient.query{session =>
