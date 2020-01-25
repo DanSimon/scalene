@@ -1,3 +1,4 @@
+concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
 
 val baseSettings = Seq(
   organization := "io.scalene",
