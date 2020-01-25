@@ -49,6 +49,11 @@ trait Route[II,O] {
 
   abstract class ConstructedRoute[O](val executor: RouteExecutor) {
     def buildResult(values: VSet): O
+
+    /**
+     * shallow clones are used for subrouting.  It prevents running the
+     * parsers/filters of the root of a tree of subroutes for every subroute
+     */
     def shallowClone: RouteBuilder[O]
 
     def document(builder: DocType): DocType
@@ -83,7 +88,7 @@ trait Route[II,O] {
    * information of a route, aka the composite type of extracted values.  Second, it
    * builds the RouteExecutor which handles the actual execution of the parsers/filters.
    * Lastly, it takes the VSet of extracted values produced by its RouteExecutor and
-   * constructs the output HList.
+   * constructs the output type.
    */
   trait RouteBuilder[L] {
 
@@ -131,7 +136,7 @@ trait Route[II,O] {
           }
         }
         new ConstructedRoute[fuse.Out](executor) {
-          def buildResult(values: VSet) = fuse.fuse(prevRoute.buildResult(values), cell.get(values))
+          def buildResult(values: VSet) = fuse.fuse(prevRoute.buildResult(values), values.get(cell))
           def shallowClone = cons(prevRoute.shallowClone, CellPhantom(cell))
           def document(builder: DocType): DocType = next.document(prevRoute.document(builder))
         }
@@ -177,7 +182,6 @@ trait Route[II,O] {
   object Routes {
 
     def apply(_routes: Route[I, FinalOut]*): Route[I, FinalOut] = {
-      //RouteBuilder.RNil.subroutes(routes.map{route => (n: RouteBuilder[Unit]) => route}: _*)
       val notFoundError: Result[Deferred[FinalOut]] = Left(ParseError.notFound("no route"))
       val routes = _routes.toArray
       new Route[I,FinalOut] {
