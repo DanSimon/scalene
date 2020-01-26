@@ -46,6 +46,19 @@ object Main extends App {
       }
     }.map{_.ok}
   }
+
+  class MyHandler {
+    var num = 0
+
+    def incrementBy(i: Int): Unit = {
+      num += i
+    }
+
+    def get = num
+  }
+  implicit val MyHandlerProvider = new AttachmentProvider[MyHandler] {
+    def provide(ctx: scalene.RequestHandlerContext) = new MyHandler
+  }
   
 
   val routes = Routes(
@@ -54,7 +67,14 @@ object Main extends App {
     GET / "sum" / ![Int] / ![Int] to {case (a,b) => (a + b).ok},
 
     GET / "quotient" / ![Int] / 
-      ![Int].filter(_ != 0, "dividend can't be zero") to {case (a,b) => (a / b).ok}
+      ![Int].filter(_ != 0, "dividend can't be zero") to {case (a,b) => (a / b).ok},
+
+    GET / "shutdown" + Context to {ctx => 
+      ctx.closeConnection
+      "bye".ok
+    },
+
+    GET / "increment" + Attachment[MyHandler] to {h => h.incrementBy(1); h.get.ok}
   )
   
   val settings = Settings.basic(serverName = "examples", port = 8080)

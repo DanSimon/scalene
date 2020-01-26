@@ -126,7 +126,9 @@ class EventLoop(
   }
 
   private def closeIdleConnections(): Unit = {
+    timeKeeper.refresh()
     val toClose = activeConnections.filter{case (_, c) => 
+      println(s"${c.lastActivity} : ${timeKeeper()} ${c.handler.idleTimeout.toMillis}")
       c.handler.idleTimeout.isFinite && c.lastActivity < (timeKeeper() - c.handler.idleTimeout.toMillis)
     }
     toClose.foreach{case (_, c) => 
