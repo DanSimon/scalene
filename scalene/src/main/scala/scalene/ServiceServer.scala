@@ -5,13 +5,6 @@ import scala.concurrent.duration._
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
-trait ServiceConnectionContext {
-
-  def disconnect(): Unit
-  def server: Server
-  def 
-
-}
 
 class ServiceServer[I,O](
   codecFactory: Codec.Factory[I,O],
