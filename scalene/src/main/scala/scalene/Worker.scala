@@ -19,6 +19,7 @@ sealed trait WorkerMessage
 sealed trait ServerToWorkerMessage extends WorkerMessage
 object ServerToWorkerMessage {
   case class NewConnection(channel: SocketChannel) extends ServerToWorkerMessage
+  case object Shutdown extends ServerToWorkerMessage
 }
 
 
@@ -41,6 +42,10 @@ class ServerWorker(
   def receive(message: WorkerMessage) = message match {
     case ServerToWorkerMessage.NewConnection(channel) => {
       eventLoop.attachConnection(channel, handlerFactory)
+    }
+    case ServerToWorkerMessage.Shutdown => {
+      eventLoop.shutdown()
+      self.stop()
     }
   }
 

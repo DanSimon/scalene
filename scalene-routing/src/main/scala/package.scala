@@ -17,6 +17,9 @@ with PathParsing with ResponseBuilding {
   implicit val stringFormatter: Formatter[String] = StringF
   implicit val intF : Formatter[Int] = IntF
   implicit val boolF : Formatter[Boolean] = BooleanF
+  implicit val doubleF = DoubleF
+  implicit val longF = LongF
+
 
   //parser tokens
 
@@ -38,6 +41,8 @@ with PathParsing with ResponseBuilding {
   def optional[A,B](extraction: Extraction[A, B]): Extraction[A, Option[B]] = extraction
     .map{t => Some(t) : Option[B]}
     .recover(_ => None)
+
+  //def seq[T](extraction: Extraction[String, T]
 
 
 

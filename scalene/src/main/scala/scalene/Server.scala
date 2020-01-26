@@ -29,7 +29,7 @@ object ServerSettings {
 
 sealed trait ServerMessage
 
-trait ExternalServerMessage extends ServerMessage
+sealed trait ExternalServerMessage extends ServerMessage
 object ExternalServerMessage {
   case object Shutdown extends ExternalServerMessage
 }
@@ -141,6 +141,10 @@ class ServerActor(
     }
     case WorkerToServerMessage.ConnectionClosed => {
       openConnections -= 1
+    }
+    case ExternalServerMessage.Shutdown => {
+      info("server shutting down")
+
     }
   }
 

@@ -59,6 +59,14 @@ class EventLoop(
     })
   }
 
+  def shutdown(): Unit = {
+    selectDispatcher.shutdown()
+    selectActor.stop()
+    activeConnections.values.foreach{connection =>
+      removeConnection(connection, DisconnectReason.Shutdown)
+    }
+  }
+
   selectActor.send(Select)
   private def scheduleIdleTimeout(): Unit = timer.schedule(1000){ 
     closeIdleConnections() 

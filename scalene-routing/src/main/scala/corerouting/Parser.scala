@@ -55,19 +55,30 @@ trait ParserContainer[In <: Clonable[In], Out] { self: RoutingSuite[In, Out] =>
   object StringF extends Formatter[String] {
     def format(data: String) = Right(data)
   }
-  object IntF extends Formatter[Int] {
-    def format(data: String) = try { Right(data.toInt) } catch {
-      case e : Throwable => Left(ParseError(ErrorReason.BadRequest, () => e.getMessage))
+
+  val DefaultFormatterError: String => String = input => {
+    val MAX_LEN = 100
+    val max = if (input.length > MAX_LEN) input.substring(100) + "..." else input
+    s"invalid value: '$max'"
+  }
+
+  def simpleFormatter[T](f: String => T, onFailureMessage: String => String = DefaultFormatterError) = new Formatter[T] {
+    def format(data: String) = try { Right(f(data)) } catch {
+      case e : Throwable => Left(ParseError(ErrorReason.BadRequest, () => onFailureMessage(data)))
     }
   }
+
+  val IntF    = simpleFormatter[Int](_.toInt)
+  val DoubleF = simpleFormatter[Double](_.toDouble)
+  val FloatF  = simpleFormatter[Float](_.toFloat)
+  val LongF   = simpleFormatter[Long](_.toLong)
+
   object BooleanF extends Formatter[Boolean] {
     def format(data: String) = 
       if (data.toLowerCase == "true") Right(true) 
       else if (data.toLowerCase == "false") Right(false)
       else Left(ParseError(ErrorReason.BadRequest, () => s"expected true/false, got '${data}'"))
   }
-
-
 
   trait Filter[I,O] {
     def apply(input: I): Deferred[O]
