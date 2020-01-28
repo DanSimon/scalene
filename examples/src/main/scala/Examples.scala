@@ -50,11 +50,11 @@ object Main extends App {
   class MyHandler {
     var num = 0
 
-    def incrementBy(i: Int): Unit = {
+    def incrementBy(i: Int): Int = {
       num += i
+      num
     }
 
-    def get = num
   }
   implicit val MyHandlerProvider = new AttachmentProvider[MyHandler] {
     def provide(ctx: scalene.RequestHandlerContext) = new MyHandler
@@ -74,7 +74,11 @@ object Main extends App {
       "bye".ok
     },
 
-    GET / "increment" + Attachment[MyHandler] to {h => h.incrementBy(1); h.get.ok}
+    (GET / "increment" / optional(![Int])) + Attachment[MyHandler] to {
+      case (Some(i), h) => h.incrementBy(i).ok
+      case (None, h) => h.incrementBy(1).ok
+    }
+
   )
   
   val settings = Settings.basic(serverName = "examples", port = 8080)

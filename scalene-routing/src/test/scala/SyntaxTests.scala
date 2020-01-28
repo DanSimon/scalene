@@ -57,6 +57,11 @@ class CListTest extends WordSpec with MustMatchers {
       val more = route + ?("foo", ![Int])
     }
 
+    "combine extracted path with other extractor" in {
+      val route = GET / "foo" / ![Int]
+      val more = route + ?("foo", ![Int])
+    }
+
     "combine with wildcard" in {
       val route = GET / "foo" / *
 
