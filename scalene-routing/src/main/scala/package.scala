@@ -43,8 +43,16 @@ with PathParsing with ResponseBuilding {
     .recover(_ => None)
 
   //def seq[T](extraction: Extraction[String, T]
+  //
+
+  def Attachment[T](implicit provider: AttachmentProvider[T]): Parser[RequestContext, T] = new Parser[RequestContext, T] {
+    def parse(r: RequestContext) = Right(r.routingContext.attachments.getOrCreate(provider))
+  }
 
 
+  val Context: Parser[RequestContext, RequestHandlerContext] = new Parser[RequestContext, RequestHandlerContext] {
+    def parse(r: RequestContext) = Right(r.routingContext.requestHandlerContext)
+  }
 
   /**
    * wildcard Accept-all path parser, should be used at the end of a path.

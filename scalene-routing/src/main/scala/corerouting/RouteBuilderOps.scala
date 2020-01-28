@@ -41,13 +41,34 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
 
     /**
      * Combine a buider with a thing that can become a cell component
-     */
+     * this doesn't work, appears to be a scala bug :(
     implicit def builderCom[A , B , CB, FOut](
       implicit fuse: Fuse.Aux[A,B, FOut],
       as: AsCellComponent[I, B, CB]
     ) = new RouteBuilderCombiner[RouteBuilder[A], CB] {
       type Out = RouteBuilder[FOut]
       def apply(a: RouteBuilder[A], b: CB): RouteBuilder[FOut] = RouteBuilder.cons(a, as(b))
+    }
+     */
+    /**
+     * Combine a buider with a parser
+     */
+    implicit def builderParser[A , B , FOut](
+      implicit fuse: Fuse.Aux[A,B, FOut],
+    ) = new RouteBuilderCombiner[RouteBuilder[A], Parser[I,B]] {
+      type Out = RouteBuilder[FOut]
+      def apply(a: RouteBuilder[A], b: Parser[I,B]): RouteBuilder[FOut] = RouteBuilder.cons(a, CellParser(b))
+    }
+
+
+    /**
+     * Combine a buider with a filter
+     */
+    implicit def builderFilter[A , B , FOut](
+      implicit fuse: Fuse.Aux[A,B, FOut],
+    ) = new RouteBuilderCombiner[RouteBuilder[A], Filter[I,B]] {
+      type Out = RouteBuilder[FOut]
+      def apply(a: RouteBuilder[A], b: Filter[I,B]): RouteBuilder[FOut] = RouteBuilder.cons(a, CellFilter(b))
     }
 
     implicit def fuseRoutes[A,B](implicit fuse: Fuse[A,B]) = new RouteBuilderCombiner[RouteBuilder[A], RouteBuilder[B]] {

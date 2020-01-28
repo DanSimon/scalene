@@ -23,17 +23,20 @@ class LazyPathIterator(getUrl: () => String, startIndex: Int = 1) extends Iterat
 }
 
 
-class RequestContext(val request: HttpRequest, val pathIterator: LazyPathIterator) extends Clonable[RequestContext] with Iterator[String]{
+class RequestContext(val request: HttpRequest, val routingContext: RoutingContext, val pathIterator: LazyPathIterator) extends Clonable[RequestContext] with Iterator[String]{
 
-  def this(request: HttpRequest) = {
-    this(request, new LazyPathIterator(() => request.url))
+  def this(request: HttpRequest, routingContext: RoutingContext) = {
+    this(request, routingContext, new LazyPathIterator(() => request.url))
   }
 
   //used when branching
-  def cclone = new RequestContext(request, pathIterator.cclone)
+  def cclone = new RequestContext(request, routingContext, pathIterator.cclone)
 
   def hasNext = pathIterator.hasNext
 
   def next = pathIterator.next
 
+
 }
+
+

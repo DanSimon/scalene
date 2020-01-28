@@ -2,7 +2,12 @@ package scalene
 
 import util._
 
-case class RequestHandlerContext(time: TimeKeeper)
+trait RequestHandlerContext {
+  def time: TimeKeeper
+
+  def closeConnection(): Unit
+
+}
 
 trait RequestHandler[I,O] {
 
