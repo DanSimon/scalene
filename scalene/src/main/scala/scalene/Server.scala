@@ -149,7 +149,7 @@ class ServerActor(
       openConnections -= 1
     }
     case ExternalServerMessage.Shutdown => {
-      info("server shutting down")
+      info("Beginning Server shutdown")
       workers.foreach(_.stop())
       self.stop()
       serverSocketChannel.close()
