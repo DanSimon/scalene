@@ -79,11 +79,17 @@ class ServerActor(
   val serverSocketChannel                = ServerSocketChannel.open()
   serverSocketChannel.configureBlocking(false)
 
-
+  val selectDispatcher = dispatcher.pool.createDispatcher("selector-{ID}")
   private val coSelect: Actor[SelectNow.type] = {
-    SimpleReceiver[SelectNow.type]{_ => self.send(SelectNow)}
+    val serverActor = self
+    selectDispatcher.attach(new Receiver[SelectNow.type](_) {
+      def receive(m: SelectNow.type) {
+        selector.select()
+        serverActor.send(SelectNow)
+      }
+    })
   }
-  
+
   val ss: ServerSocket = serverSocketChannel.socket()
   val addresses: Seq[InetSocketAddress] =
     settings.addresses.isEmpty match {
@@ -107,7 +113,7 @@ class ServerActor(
 
     }
     startServer()
-    self.send(SelectNow)
+    coSelect.send(SelectNow)
   }
 
   override def onStop() {
@@ -137,19 +143,20 @@ class ServerActor(
   def receive(s: ServerMessage) : Unit = s match {
     case SelectNow => {
       select()
-      self.send(SelectNow)
+      coSelect.send(SelectNow)
     }
     case WorkerToServerMessage.ConnectionClosed => {
       openConnections -= 1
     }
     case ExternalServerMessage.Shutdown => {
       info("server shutting down")
-
+      workers.foreach(_.stop())
+      self.stop()
+      serverSocketChannel.close()
     }
   }
 
   private def select(): Unit = {
-    selector.select()
     val selectedKeys = selector.selectedKeys()
     val it           = selectedKeys.iterator()
 
@@ -198,6 +205,17 @@ class Server(stateReader: AtomicReference[ServerState], actor: Actor[ExternalSer
     if (state != ServerState.Running) {
       throw new Exception("Timed out waiting for server to start")
     }
+  }
+
+  def blockUntilShutdown(timeoutMillis: Long):  Unit = {
+    val end = System.currentTimeMillis + timeoutMillis
+    while (state != ServerState.Terminated && System.currentTimeMillis < end) {
+      Thread.sleep(10)
+    }
+    if (state != ServerState.Terminated) {
+      throw new Exception("Timed out waiting for server to shutdown")
+    }
+
   }
 
 }

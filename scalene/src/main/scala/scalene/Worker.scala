@@ -23,7 +23,6 @@ object ServerToWorkerMessage {
 }
 
 
-trait ServerConnectionHandler extends ConnectionHandler
 
 class ServerWorker(
   server: Actor[WorkerToServerMessage],

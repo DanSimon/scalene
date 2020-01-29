@@ -42,7 +42,11 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     val server = Routing.startDetached(settings, routes)
     server.blockUntilReady(1000)
     val client = HttpClient.futureClient(BasicClientConfig.default("localhost", 9876))
-    f(client)
+    f(client).map{t =>
+      server.shutdown()
+      server.blockUntilShutdown(1000)
+      t
+    }
   }
 
   it should "receive a request"  in  { 

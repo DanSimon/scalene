@@ -17,3 +17,5 @@ trait ConnectionHandler {
   def idleTimeout: Duration
 
 }
+
+trait ServerConnectionHandler extends ConnectionHandler
