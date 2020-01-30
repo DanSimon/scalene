@@ -1,7 +1,7 @@
-package scalene.util
+  package scalene.util
 
 import scalene.actor._
-import org.scalatest._
+import org.scalatest.{Timer => _, _}
 import scala.concurrent.{Future, Promise}
 
 class TimerSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
