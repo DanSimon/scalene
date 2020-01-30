@@ -4,15 +4,19 @@ import scalene.Deferred
 
 trait CellContainer[In <: Clonable[In], Out]{self: RoutingSuite[In, Out] =>
 
+/**
+ * A VSet stores extracted values while a route is being executed.
+ */
 class VSet(size: Int) {
-  private val map = new Array[Any](math.max(size, 1))
-  def set(index: Int, value: Any) {
-    map(index) = value
+  private val values = new Array[Any](math.max(size, 1))
+  def set[T](cell: Cell[T], value: T) {
+    values(cell.index) = value
   }
-  def apply[T](index: Int): T = {
-    map(index).asInstanceOf[T]
+  def get[T](cell: Cell[T]): T = {
+    values(cell.index).asInstanceOf[T]
   }
 }
+
 object VSet {
   def apply(size: Int): VSet = new VSet(size)
 
@@ -21,14 +25,11 @@ object VSet {
   val empty = new VSet(0)
 }
 
-class Cell[T](val index: Int) {
-  def set(t: T, arr: VSet) {
-    arr.set(index, t)
-  }
-  def get(arr: VSet): T = {
-    arr[T](index)
-  }
-}
+/**
+ * A Cell represents a typed location into a VSet
+ **/
+case class Cell[T](val index: Int)
+
 
 trait WrappedParser[I] {
   def parse(input: I, values: VSet): Result[Unit]
@@ -40,7 +41,7 @@ class WrappedParserImpl[I,O](parser: Parser[I,O], cell: Cell[O]) extends Wrapped
   def parse(input: I, values: VSet): Result[Unit] = parser.parse(input) match {
     case Left(err) => Left(err)
     case Right(value) => {
-      cell.set(value, values)
+      values.set(cell, value)
       ok
     }
   }
@@ -53,7 +54,7 @@ trait WrappedFilter[I] {
 class WrappedFilterImpl[I,O](filter: Filter[I,O], cell: Cell[O]) extends WrappedFilter[I] {
   val ok: Result[Unit] = Right(())
   def parse(input: I, values: VSet): Deferred[Unit] = filter(input) map {value =>
-    cell.set(value, values)
+    values.set(cell, value)
     ()
   }
 }
@@ -96,12 +97,6 @@ object AsCellComponent {
     def apply(parser: Parser[I,A]): CellComponent[I,A] = CellParser(parser)
   }
   
-
- /*
- implicit def liftParser[I, A, P <: Parser[I,A]] = new AsCellComponent[I, A, P]{
-   def apply(parser: P): CellComponent[I, A] = CellParser(parser)
- }
- */
 
   implicit def liftFilter[I,A] = new AsCellComponent[I, A, Filter[I,A]] {
     def apply(filter: Filter[I,A]): CellComponent[I,A] = CellFilter(filter)

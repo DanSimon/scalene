@@ -17,6 +17,9 @@ with PathParsing with ResponseBuilding {
   implicit val stringFormatter: Formatter[String] = StringF
   implicit val intF : Formatter[Int] = IntF
   implicit val boolF : Formatter[Boolean] = BooleanF
+  implicit val doubleF = DoubleF
+  implicit val longF = LongF
+
 
   //parser tokens
 
@@ -39,7 +42,17 @@ with PathParsing with ResponseBuilding {
     .map{t => Some(t) : Option[B]}
     .recover(_ => None)
 
+  //def seq[T](extraction: Extraction[String, T]
+  //
 
+  def Attachment[T](implicit provider: AttachmentProvider[T]): Parser[RequestContext, T] = new Parser[RequestContext, T] {
+    def parse(r: RequestContext) = Right(r.routingContext.attachments.getOrCreate(provider))
+  }
+
+
+  val Context: Parser[RequestContext, RequestHandlerContext] = new Parser[RequestContext, RequestHandlerContext] {
+    def parse(r: RequestContext) = Right(r.routingContext.requestHandlerContext)
+  }
 
   /**
    * wildcard Accept-all path parser, should be used at the end of a path.

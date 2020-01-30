@@ -1,5 +1,7 @@
 # Scalene - Fast and Lightweight Scala I/O Framework
 
+![Scala CI](https://github.com/DanSimon/scalene/workflows/Scala%20CI/badge.svg?branch=master)
+
 Scalene is a multi-threaded, asynchronous, reactive TCP I/O framework
 primarily focused on building HTTP servers.
 

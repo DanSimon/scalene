@@ -59,6 +59,14 @@ class EventLoop(
     })
   }
 
+  def shutdown(): Unit = {
+    selectDispatcher.shutdown()
+    selectActor.stop()
+    activeConnections.values.foreach{connection =>
+      removeConnection(connection, DisconnectReason.Shutdown)
+    }
+  }
+
   selectActor.send(Select)
   private def scheduleIdleTimeout(): Unit = timer.schedule(1000){ 
     closeIdleConnections() 
@@ -118,6 +126,7 @@ class EventLoop(
   }
 
   private def closeIdleConnections(): Unit = {
+    timeKeeper.refresh()
     val toClose = activeConnections.filter{case (_, c) => 
       c.handler.idleTimeout.isFinite && c.lastActivity < (timeKeeper() - c.handler.idleTimeout.toMillis)
     }

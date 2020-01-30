@@ -5,6 +5,7 @@ import scala.concurrent.duration._
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
+
 class ServiceServer[I,O](
   codecFactory: Codec.Factory[I,O],
   requestHandler: RequestHandler[I,O],
@@ -29,7 +30,9 @@ class ServiceServer[I,O](
   }
 
   def onInitialize(env: AsyncContext) {
+    //note - request handler is initialized on onConnected
   }
+
 
   var _handle: Option[ConnectionHandle] = None
 
@@ -57,7 +60,13 @@ class ServiceServer[I,O](
 
   def onConnected(handle: ConnectionHandle) {
     _handle = Some(handle)
-    requestHandler.onInitialize(RequestHandlerContext(handle.time))
+    val rctx = new RequestHandlerContext {
+      def time = handle.time
+      def closeConnection(): Unit = {
+        handle.disconnect()
+      }
+    }
+    requestHandler.onInitialize(rctx)
 
   }
 

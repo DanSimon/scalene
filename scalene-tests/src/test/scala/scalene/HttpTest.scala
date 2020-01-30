@@ -7,11 +7,13 @@ import Method._
 import scalene.actor._
 import scalene.routing._
 import org.scalatest._
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
 import BasicConversions._
 
-class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
+class HttpSpec extends FlatSpec with Matchers with BeforeAndAfterAll{
+  
+  implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   behavior of "HttpServer"
   
@@ -27,22 +29,26 @@ class HttpSpec extends AsyncFlatSpec with Matchers with BeforeAndAfterAll{
     )
   )
 
-  def withPool[T](f: Pool => Future[T]): Future[T] = {
+  def withPool[T](f: Pool => T): T = {
     val p = new Pool
-    val future = f(p)
-    future.map{x => 
-      p.shutdown
-      p.join
-      x
-    }
-    future
+    val x = f(p)
+    p.shutdown
+    p.join
+    x
   }
 
-  def withRoutes[T](routes: HttpRoute)(f: FutureClient[HttpRequest, HttpResponse] => Future[T]): Future[T] = withPool{implicit p => 
-    val server = Routing.startDetached(settings, routes)
-    server.blockUntilReady(1000)
-    val client = HttpClient.futureClient(BasicClientConfig.default("localhost", 9876))
-    f(client)
+  def withRoutes[T](routes: HttpRoute)(f: FutureClient[HttpRequest, HttpResponse] => Future[T]): T = {
+    withPool{implicit p => 
+      val server = Routing.startDetached(settings, routes)
+      server.blockUntilReady(1000)
+      val client = HttpClient.futureClient(BasicClientConfig.default("localhost", 9876))
+      val res: Future[T] = f(client).map{t =>
+        server.shutdown()
+        server.blockUntilShutdown(1000)
+        t
+      }
+      Await.result(res, 2000.milliseconds)
+    }
   }
 
   it should "receive a request"  in  { 

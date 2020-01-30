@@ -41,13 +41,34 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
 
     /**
      * Combine a buider with a thing that can become a cell component
-     */
+     * this doesn't work, appears to be a scala bug :(
     implicit def builderCom[A , B , CB, FOut](
       implicit fuse: Fuse.Aux[A,B, FOut],
       as: AsCellComponent[I, B, CB]
     ) = new RouteBuilderCombiner[RouteBuilder[A], CB] {
       type Out = RouteBuilder[FOut]
       def apply(a: RouteBuilder[A], b: CB): RouteBuilder[FOut] = RouteBuilder.cons(a, as(b))
+    }
+     */
+    /**
+     * Combine a buider with a parser
+     */
+    implicit def builderParser[A , B , FOut](
+      implicit fuse: Fuse.Aux[A,B, FOut],
+    ) = new RouteBuilderCombiner[RouteBuilder[A], Parser[I,B]] {
+      type Out = RouteBuilder[FOut]
+      def apply(a: RouteBuilder[A], b: Parser[I,B]): RouteBuilder[FOut] = RouteBuilder.cons(a, CellParser(b))
+    }
+
+
+    /**
+     * Combine a buider with a filter
+     */
+    implicit def builderFilter[A , B , FOut](
+      implicit fuse: Fuse.Aux[A,B, FOut],
+    ) = new RouteBuilderCombiner[RouteBuilder[A], Filter[I,B]] {
+      type Out = RouteBuilder[FOut]
+      def apply(a: RouteBuilder[A], b: Filter[I,B]): RouteBuilder[FOut] = RouteBuilder.cons(a, CellFilter(b))
     }
 
     implicit def fuseRoutes[A,B](implicit fuse: Fuse[A,B]) = new RouteBuilderCombiner[RouteBuilder[A], RouteBuilder[B]] {
@@ -71,6 +92,14 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
 
   implicit class RouteBuilderOps[L](builder: RouteBuilder[L]) {
 
+    /**
+     * Create a tree of subroutes with this RouteBuilder as the root.  Subroute
+     * parsing will only begin if the root parser is successful.  However,
+     * parser-before-filter execution order is maintained, so if the root
+     * RouteBuilder includes a filter, that filter will still not be executed until a subroute is successfully parsed.
+     *
+     * Subroute parsing is attempted in the order they are given, stopping as soon as one of them succeeds
+     */
     def subroutes(subs: (RouteBuilder[L] => Route[I,FinalOut])*): Route[I,FinalOut] = {
       val built = builder.build(0)
       val subroutes: Array[Route[I,FinalOut]] = subs.map{sub => sub(built.shallowClone)}.toArray
@@ -89,6 +118,10 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
 
     }
 
+    /**
+     * Combine this RouteBuilder with a function that accepts its output to
+     * produce an object of the final Response type.
+     */
     def to[T](completion: L => T)(implicit as: AsResponse[T, FinalOut]): Route[I,FinalOut] = {
       val built = builder.build(0)
       new Route[I,FinalOut] {
