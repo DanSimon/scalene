@@ -97,6 +97,7 @@ trait LineParser extends FastArrayBuilding[Boolean] {
     var remaining = buffer.bytesRemaining
     if (scanByte == LF && remaining != 0) {
       if (checkLineFeed(buffer)) return true
+      remaining -= 1
     }
     while (remaining != 0) {
       val byte = buffer.buffer.get
@@ -104,6 +105,7 @@ trait LineParser extends FastArrayBuilding[Boolean] {
       if (byte == CR) {
         if (remaining != 0) {
           if (checkLineFeed(buffer)) return true
+          remaining -= 1
         } else {
           //this would only happen if the \n is in the next packet/buffer,
           //very rare but it can happen, but we can't complete until we've read it in
