@@ -46,7 +46,7 @@ trait HttpMessageDecoder extends LineParser {
   val headers = new Headers(new LinkedList[Header])
 
   @inline
-  final def buildMessage(): StreamManager = {
+  final def buildMessage(): Unit = {
     val headers = new ParsedHeaders(
       headers = buildHeaders,
       transferEncodingOpt = buildTransferEncoding,
@@ -54,34 +54,33 @@ trait HttpMessageDecoder extends LineParser {
       contentLength = buildContentLength,
       connection = None
     )
-    var manager: StreamManager = NoBodyManager
-    val body = buildTransferEncoding match {
+    val body = NoBodyStream /*buildTransferEncoding match {
       case None => if (buildContentLength.isEmpty) {
         NoBodyStream
       } else {
-        manager = new BasicStreamManager(buildContentLength.get)
-        BodyData.Stream(StreamBuilder(manager))
+        currentStreamManager = new BasicStreamManager(buildContentLength.get)
+        BodyData.Stream(StreamBuilder(currentStreamManager))
       }
       case Some(TransferEncoding.Chunked) => {
-        manager = new ChunkedStreamManager
-        BodyData.Stream(StreamBuilder(manager))
+        currentStreamManager = new ChunkedStreamManager
+        BodyData.Stream(StreamBuilder(currentStreamManager))
       }
-    }
+    }*/
+
     finishDecode(buildFirstLine,  headers, body)
     //if the body stream was unused we have to complete it ourselves so the data is still consumed
-    manager.setBlackHoleIfUnset()
+    currentStreamManager.setBlackHoleIfUnset()
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = None
     buildTransferEncoding = None
-    manager
   }
 
   //returns true if we've finished reading the header
   @inline
   final def onComplete(buf: ReadBuffer): Boolean = {
     if (buf.size == 0) { //0 size is the blank newline at the end of the head
-      currentStreamManager = buildMessage()
+      buildMessage()
       true
     } else {
       if (buildFirstLine.length == 0) {
