@@ -78,7 +78,7 @@ trait LineParser extends FastArrayBuilding[Boolean] {
 
   var scanByte = CR
 
-  private final def checkLineFeed(buffer: ReadBuffer): Boolean = {
+  @inline private final def checkLineFeed(buffer: ReadBuffer): Boolean = {
     val b = buffer.buffer.get
     if (b == LF) {
       if (includeNewline) {
@@ -94,15 +94,16 @@ trait LineParser extends FastArrayBuilding[Boolean] {
 
   //TODO : should return something instead of Int to indicate chunked body or body until EOS
   final def parse(buffer: ReadBuffer): Boolean = {
-    var done = false
-    if (scanByte == LF && ! buffer.isEmpty) {
-      done = checkLineFeed(buffer)
+    var remaining = buffer.bytesRemaining
+    if (scanByte == LF && remaining != 0) {
+      if (checkLineFeed(buffer)) return true
     }
-    while (!buffer.isEmpty && !done) {
-      val byte = buffer.next
+    while (remaining != 0) {
+      val byte = buffer.buffer.get
+      remaining -= 1
       if (byte == CR) {
-        if (!buffer.isEmpty) {
-          done = checkLineFeed(buffer)
+        if (remaining != 0) {
+          if (checkLineFeed(buffer)) return true
         } else {
           //this would only happen if the \n is in the next packet/buffer,
           //very rare but it can happen, but we can't complete until we've read it in
@@ -112,7 +113,7 @@ trait LineParser extends FastArrayBuilding[Boolean] {
         write(byte)
       }
     }
-    done
+    false
   }
 
 }

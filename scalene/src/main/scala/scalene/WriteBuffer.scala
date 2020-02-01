@@ -12,29 +12,29 @@ trait WriteBuffer {
 
   protected def into(bytesNeeded: Int): ByteBuffer
 
-  final def write(from: ReadBuffer) {
+  @inline final def write(from: ReadBuffer) {
     into(from.bytesRemaining).put(from.buffer)
   }
 
-  final def write(bytes: Array[Byte]) {
+  @inline final def write(bytes: Array[Byte]) {
     if (bytes.length > 0) {
       into(bytes.length).put(bytes)
     }
   }
 
-  final def write(bytes: Array[Byte], offset: Int, length: Int) {
+  @inline final def write(bytes: Array[Byte], offset: Int, length: Int) {
     into(length).put(bytes, offset, length)
   }
 
-  final def write(byte: Byte) {
+  @inline final def write(byte: Byte) {
     into(1).put(byte)
   }
 
-  final def write(char: Char) {
+  @inline final def write(char: Char) {
     write(char.toByte)
   }
 
-  final def write(number: Int) {
+  @inline final def write(number: Int) {
     if (number == 0) {
       write('0'.toByte)
     } else {
@@ -42,11 +42,12 @@ trait WriteBuffer {
       var r     = number
       var index = 9
       while (r > 0) {
-        arr(index) = ((r % 10) + 48).toByte
-        r = r / 10
+        val q = (r * 3435973837L >> 35).toInt // divide positive int by 10
+        arr(index) = (48 + r - (q << 3) - (q << 1)).toByte
         index -= 1
+        r = q
       }
-      write(arr, index + 1, 10 - (index + 1))
+      write(arr, index + 1, 9 - index)
     }
   }
 
@@ -71,11 +72,11 @@ class WriteBufferImpl(baseSize: Int, allocateDirect: Boolean = true) extends Rea
 
   private var current: ByteBuffer = base
 
-  final def size = current.position
+  @inline final def size = current.position
 
-  final def isOverflowed: Boolean = current != base
+  @inline final def isOverflowed: Boolean = current != base
 
-  final protected def into(bytesNeeded: Int): ByteBuffer = {
+  @inline final protected def into(bytesNeeded: Int): ByteBuffer = {
     if (bytesNeeded > current.remaining) {
       val temp = current
       current = ByteBuffer.allocate((current.position() + bytesNeeded).toInt * 2)
