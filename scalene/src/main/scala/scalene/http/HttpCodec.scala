@@ -70,6 +70,7 @@ trait HttpMessageDecoder extends LineParser {
     finishDecode(buildFirstLine,  headers, body)
     //if the body stream was unused we have to complete it ourselves so the data is still consumed
     currentStreamManager.setBlackHoleIfUnset()
+    currentStreamManager = NoBodyManager
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
     buildContentLength = None
@@ -78,15 +79,15 @@ trait HttpMessageDecoder extends LineParser {
 
   //returns true if we've finished reading the header
   @inline
-  final def onComplete(buf: ReadBuffer): Boolean = {
-    if (buf.size == 0) { //0 size is the blank newline at the end of the head
+  final def onComplete(arr: Array[Byte]): Boolean = {
+    if (arr.size == 0) { //0 size is the blank newline at the end of the head
       buildMessage()
       true
     } else {
       if (buildFirstLine.length == 0) {
-        buildFirstLine = buf.readAll
+        buildFirstLine = arr
       } else {          
-        val header = buf.readAll
+        val header = arr
         parseSpecialHeader(header)
         buildHeaders.add(new StaticHeader(header))
       }
@@ -281,9 +282,9 @@ class ChunkedStreamManager extends LiveSink[ReadBuffer] with SubBufferSink with 
   private var _isDone = false
   def isDone = _isDone
 
-  def onComplete(line: ReadBuffer): Boolean = {
+  def onComplete(line: Array[Byte]): Boolean = {
     if (state == ParsingHead) {
-      val size = Integer.parseInt(line.readString, 16)
+      val size = Integer.parseInt(new String(line), 16)
       if (size == 0) {
         _isDone = true
       } 
@@ -333,8 +334,8 @@ class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuil
   def initSize = 100
   def shrinkOnComplete = true
 
-  def onComplete(buf: ReadBuffer): Unit = {
-    result.succeed(buf)
+  def onComplete(arr: Array[Byte]): Unit = {
+    result.succeed(ReadBuffer(arr))
   }
 
   val result = new PromiseAsync[ReadBuffer]

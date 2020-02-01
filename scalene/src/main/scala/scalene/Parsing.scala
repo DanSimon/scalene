@@ -5,12 +5,13 @@
 package scalene
 
 import java.nio.ByteBuffer
+import java.util.Arrays
 
 trait FastArrayBuilding[T] {
 
   def initSize: Int
   def shrinkOnComplete: Boolean
-  def onComplete(buf: ReadBuffer): T
+  def onComplete(array: Array[Byte]): T
 
   private var build: Array[Byte] = new Array[Byte](initSize)
 
@@ -52,8 +53,8 @@ trait FastArrayBuilding[T] {
     writePos += bytes.length
   }
 
-  final def complete(): T = {
-    val res = onComplete(ReadBuffer(ByteBuffer.wrap(build, 0, writePos)))
+  @inline final def complete(): T = {
+    val res = onComplete(Arrays.copyOf(build, writePos))
     writePos = 0
     if (shrinkOnComplete && build.length > initSize) {
       build = new Array(initSize)
