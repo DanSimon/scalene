@@ -28,7 +28,7 @@ class EventLoop(
 
   private val selector = Selector.open()
 
-  private val readBuffer = ByteBuffer.allocateDirect(1024 * 128)
+  private val readBuffer = ByteBuffer.allocateDirect(1024 * 1024 * 2)
 
   private val writeBuffer = new WriteBufferImpl(1024 * 1024 * 4)
 
