@@ -28,9 +28,9 @@ class EventLoop(
 
   private val selector = Selector.open()
 
-  private val readBuffer = ByteBuffer.allocateDirect(1024 * 128)
+  private val readBuffer = ByteBuffer.allocateDirect(1024 * 12)
 
-  private val writeBuffer = new WriteBufferImpl(1024 * 1024 * 4)
+  private val writeBuffer = new WriteBufferImpl(1024 * 128)
 
   private val activeConnections = collection.mutable.Map[Long, ConnectionManager]()
 

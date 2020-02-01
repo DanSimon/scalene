@@ -13,8 +13,9 @@ object HttpParsing {
   val CODE_START = HttpVersion.`1.1`.stringValue.length + 1
 
   
-  val ContentLengthPrefix = "Content-Length: ".getBytes
-  val Newline = "\r\n".getBytes
+  val ContentLengthPrefix: Array[Byte] = "Content-Length: ".getBytes
+  val Newline: Array[Byte] = "\r\n".getBytes
+  val DoubleNewline: Array[Byte] = Newline ++ Newline
 
 }
 import HttpParsing._
@@ -28,6 +29,7 @@ trait HttpMessageDecoder extends LineParser {
   def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData)
 
   final val zeroFirstLine = new Array[Byte](0)
+  private val NoBodyStream = BodyData.Stream(StreamBuilder(NoBodyManager))
 
   private var messages = 0L
   def messagesDecoded:Long = messages
@@ -37,53 +39,55 @@ trait HttpMessageDecoder extends LineParser {
 
   private var buildFirstLine = new Array[Byte](0)
   private var buildHeaders = new LinkedList[Header]
-  private var buildContentLength = 0
+  private var buildContentLength: Option[Int] = None
   private var buildTransferEncoding: Option[TransferEncoding] = None
   private var currentStreamManager: StreamManager = NoBodyManager
 
   val headers = new Headers(new LinkedList[Header])
 
   @inline
-  final def buildMessage(): StreamManager = {
+  final def buildMessage(): Unit = {
     val headers = new ParsedHeaders(
       headers = buildHeaders,
       transferEncodingOpt = buildTransferEncoding,
       contentType = None,
-      contentLength = if (buildContentLength == 0) None else Some(buildContentLength),
+      contentLength = buildContentLength,
       connection = None
     )
-    val streamManager = buildTransferEncoding match {
-      case None => if (buildContentLength == 0) {
-        NoBodyManager
+    val body = buildTransferEncoding match {
+      case None => if (buildContentLength.isEmpty) {
+        NoBodyStream
       } else {
-        new BasicStreamManager(buildContentLength)
+        currentStreamManager = new BasicStreamManager(buildContentLength.get)
+        BodyData.Stream(StreamBuilder(currentStreamManager))
       }
       case Some(TransferEncoding.Chunked) => {
-        new ChunkedStreamManager
+        currentStreamManager = new ChunkedStreamManager
+        BodyData.Stream(StreamBuilder(currentStreamManager))
       }
     }
-    val builder = StreamBuilder(streamManager)
-    finishDecode(buildFirstLine,  headers, BodyData.Stream(builder))
+
+    finishDecode(buildFirstLine,  headers, body)
     //if the body stream was unused we have to complete it ourselves so the data is still consumed
-    streamManager.setBlackHoleIfUnset()
+    currentStreamManager.setBlackHoleIfUnset()
+    currentStreamManager = NoBodyManager
     buildHeaders = new LinkedList[Header]
     buildFirstLine = zeroFirstLine
-    buildContentLength = 0
+    buildContentLength = None
     buildTransferEncoding = None
-    streamManager
   }
 
   //returns true if we've finished reading the header
   @inline
-  final def onComplete(buf: ReadBuffer): Boolean = {
-    if (buf.size == 0) { //0 size is the blank newline at the end of the head
-      currentStreamManager = buildMessage()
+  final def onComplete(arr: Array[Byte]): Boolean = {
+    if (arr.size == 0) { //0 size is the blank newline at the end of the head
+      buildMessage()
       true
     } else {
       if (buildFirstLine.length == 0) {
-        buildFirstLine = buf.readAll
+        buildFirstLine = arr
       } else {          
-        val header = buf.readAll
+        val header = arr
         parseSpecialHeader(header)
         buildHeaders.add(new StaticHeader(header))
       }
@@ -93,8 +97,8 @@ trait HttpMessageDecoder extends LineParser {
 
   @inline
   final protected def parseSpecialHeader(header: Array[Byte]): Unit = {
-    if (buildContentLength == 0 && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
-      buildContentLength = trimStringToInt(header, Headers.ContentLength.bytes.length + 2)
+    if (buildContentLength.isEmpty && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
+      buildContentLength = Some(trimStringToInt(header, Headers.ContentLength.bytes.length + 2))
     } else if (ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.TransferEncoding.bytes)) {
       buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header))
     }
@@ -166,8 +170,7 @@ trait HttpMessageEncoding[T <: HttpMessage] {
       case BodyData.Static(buf) => {
         buffer.write(ContentLengthPrefix)
         buffer.write(buf.length)
-        buffer.write(Newline)
-        buffer.write(Newline)
+        buffer.write(DoubleNewline)
         buffer.write(buf)
         None
       }
@@ -219,7 +222,7 @@ extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder  with HttpMessa
 
 }
 
-trait StreamManager extends Sink[ReadBuffer] {
+trait StreamManager extends LiveSink[ReadBuffer] {
 
   def isDone: Boolean
 }
@@ -279,9 +282,9 @@ class ChunkedStreamManager extends LiveSink[ReadBuffer] with SubBufferSink with 
   private var _isDone = false
   def isDone = _isDone
 
-  def onComplete(line: ReadBuffer): Boolean = {
+  def onComplete(line: Array[Byte]): Boolean = {
     if (state == ParsingHead) {
-      val size = Integer.parseInt(line.readString, 16)
+      val size = Integer.parseInt(new String(line), 16)
       if (size == 0) {
         _isDone = true
       } 
@@ -331,8 +334,8 @@ class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuil
   def initSize = 100
   def shrinkOnComplete = true
 
-  def onComplete(buf: ReadBuffer): Unit = {
-    result.succeed(buf)
+  def onComplete(arr: Array[Byte]): Unit = {
+    result.succeed(ReadBuffer(arr))
   }
 
   val result = new PromiseAsync[ReadBuffer]

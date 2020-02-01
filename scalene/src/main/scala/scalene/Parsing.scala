@@ -5,12 +5,13 @@
 package scalene
 
 import java.nio.ByteBuffer
+import java.util.Arrays
 
 trait FastArrayBuilding[T] {
 
   def initSize: Int
   def shrinkOnComplete: Boolean
-  def onComplete(buf: ReadBuffer): T
+  def onComplete(array: Array[Byte]): T
 
   private var build: Array[Byte] = new Array[Byte](initSize)
 
@@ -52,8 +53,8 @@ trait FastArrayBuilding[T] {
     writePos += bytes.length
   }
 
-  final def complete(): T = {
-    val res = onComplete(ReadBuffer(ByteBuffer.wrap(build, 0, writePos)))
+  @inline final def complete(): T = {
+    val res = onComplete(Arrays.copyOf(build, writePos))
     writePos = 0
     if (shrinkOnComplete && build.length > initSize) {
       build = new Array(initSize)
@@ -78,7 +79,7 @@ trait LineParser extends FastArrayBuilding[Boolean] {
 
   var scanByte = CR
 
-  private final def checkLineFeed(buffer: ReadBuffer): Boolean = {
+  @inline private final def checkLineFeed(buffer: ReadBuffer): Boolean = {
     val b = buffer.buffer.get
     if (b == LF) {
       if (includeNewline) {
@@ -94,15 +95,18 @@ trait LineParser extends FastArrayBuilding[Boolean] {
 
   //TODO : should return something instead of Int to indicate chunked body or body until EOS
   final def parse(buffer: ReadBuffer): Boolean = {
-    var done = false
-    if (scanByte == LF && ! buffer.isEmpty) {
-      done = checkLineFeed(buffer)
+    var remaining = buffer.bytesRemaining
+    if (scanByte == LF && remaining != 0) {
+      if (checkLineFeed(buffer)) return true
+      remaining -= 1
     }
-    while (!buffer.isEmpty && !done) {
-      val byte = buffer.next
+    while (remaining != 0) {
+      val byte = buffer.buffer.get
+      remaining -= 1
       if (byte == CR) {
-        if (!buffer.isEmpty) {
-          done = checkLineFeed(buffer)
+        if (remaining != 0) {
+          if (checkLineFeed(buffer)) return true
+          remaining -= 1
         } else {
           //this would only happen if the \n is in the next packet/buffer,
           //very rare but it can happen, but we can't complete until we've read it in
@@ -112,7 +116,7 @@ trait LineParser extends FastArrayBuilding[Boolean] {
         write(byte)
       }
     }
-    done
+    false
   }
 
 }
