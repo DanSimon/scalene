@@ -54,7 +54,7 @@ trait HttpMessageDecoder extends LineParser {
       contentLength = buildContentLength,
       connection = None
     )
-    val body = NoBodyStream /*buildTransferEncoding match {
+    val body = buildTransferEncoding match {
       case None => if (buildContentLength.isEmpty) {
         NoBodyStream
       } else {
@@ -65,7 +65,7 @@ trait HttpMessageDecoder extends LineParser {
         currentStreamManager = new ChunkedStreamManager
         BodyData.Stream(StreamBuilder(currentStreamManager))
       }
-    }*/
+    }
 
     finishDecode(buildFirstLine,  headers, body)
     //if the body stream was unused we have to complete it ourselves so the data is still consumed
