@@ -55,7 +55,7 @@ trait HttpMessageDecoder extends LineParser {
       connection = None
     )
     val body = buildTransferEncoding match {
-      case None => if (buildContentLength.isEmpty) {
+      case None | Some(TransferEncoding.Identity) => if (buildContentLength.isEmpty) {
         NoBodyStream
       } else {
         currentStreamManager = new BasicStreamManager(buildContentLength.get)
