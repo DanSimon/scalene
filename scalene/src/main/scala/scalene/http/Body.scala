@@ -30,6 +30,18 @@ object BodyData {
 }
 
 trait BodyFormatter[-T] {
+  def apply(item: T): Body
+}
+
+object BodyFormatter {
+
+  implicit val nop = new BodyFormatter[Body] {
+    def apply(b: Body) = b
+  }
+
+}
+
+trait SimpleBodyFormatter[-T] extends BodyFormatter[T] {
   def format(item: T): BodyData
   def contentType: Option[ContentType]
 

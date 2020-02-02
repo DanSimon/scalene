@@ -4,27 +4,26 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import scalene.actor.Pool
 import scalene.routing._
-import scalene.http.{BodyData, BodyFormatter, ContentType}
+import scalene.http.{Body, BodyData, BodyFormatter, ContentType}
 import scalene.sql._
 import BasicConversions._
 
 object Main extends App {
 
-  trait JsonMessage
+  sealed trait JsonMessage
   case class JsonRouteMessage(message: String) extends JsonMessage
   case class DBRouteMessage(id: Int, randomnumber: Int) extends JsonMessage
   case class MultiDBRouteMessage(items: Array[DBRouteMessage]) extends JsonMessage
 
   implicit val messageFormatter = new BodyFormatter[JsonMessage] {
     val mapper: ObjectMapper = new ObjectMapper().registerModule(DefaultScalaModule)
-    def format(msg: JsonMessage) = {
+    def apply(msg: JsonMessage) = {
       val obj = msg match {
         case MultiDBRouteMessage(items) => items
         case other => other
       }
-      BodyData.Static(mapper.writeValueAsBytes(obj))
+      Body(mapper.writeValueAsBytes(obj), Some(ContentType.`application/json`))
     }
-    val contentType = Some(ContentType.`application/json`)
   }
 
   val settings = Settings.basic(
@@ -73,8 +72,10 @@ object Main extends App {
     }
   }
 
+  val plaintextBody = Body.plain("Hello, World!")
+
   val routes = Routes(
-    GET / "plaintext" as "Hello, World".ok,
+    GET / "plaintext" to {_ => plaintextBody.ok},
     GET / "json"      as JsonRouteMessage("Hello, World").ok,
     dbRoute,
     multiRoute
