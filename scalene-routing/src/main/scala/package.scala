@@ -86,7 +86,7 @@ with PathParsing with ResponseBuilding {
   val ServerSettings = scalene.ServerSettings
 
   object BasicConversions {
-    trait PlainTextBody[T] extends BodyFormatter[T] {
+    trait PlainTextBody[T] extends SimpleBodyFormatter[T] {
       def format(obj: T) = BodyData.Static(obj.toString.getBytes())
       def contentType = Some(ContentType.`text/plain`)
     }
@@ -96,7 +96,7 @@ with PathParsing with ResponseBuilding {
     implicit object FloatToBody extends PlainTextBody[Float] 
     implicit object DoubleToBody extends PlainTextBody[Double] 
     implicit object BooleanToBody extends PlainTextBody[Boolean] 
-    implicit def streamBodyFormatter[T](implicit b: PlainTextBody[T]) = new BodyFormatter[Stream[T]] {
+    implicit def streamBodyFormatter[T](implicit b: PlainTextBody[T]) = new SimpleBodyFormatter[Stream[T]] {
       def format(stream: Stream[T]) = BodyData.Stream(stream.map{item => ReadBuffer(b.format(item).data)})
       def contentType = Some(ContentType.`text/plain`)
     }
