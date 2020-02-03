@@ -30,3 +30,4 @@ secrets.tar
 
 ignored/
 metals.sbt
+.java-version 
