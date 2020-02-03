@@ -1,5 +1,9 @@
 concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
 
+lazy val scala213 = "2.13.1"
+lazy val scala212 = "2.12.10"
+lazy val supportedScalaVersions = List(scala212, scala213)
+
 val baseSettings = Seq(
   organization := "io.scalene",
   publishMavenStyle := true,
@@ -7,6 +11,7 @@ val baseSettings = Seq(
   version := "0.1.0",
   scalaVersion := "2.13.1",
   scalacOptions += "-target:jvm-1.8",
+  crossScalaVersions := supportedScalaVersions,
   addCompilerPlugin("io.tryp" % "splain" % "0.5.0" cross CrossVersion.patch),
   libraryDependencies ++= Seq(
     "ch.qos.logback"               %  "logback-classic"      % "1.2.2",
