@@ -29,3 +29,5 @@ secrets.tar
 .jvmopts
 
 ignored/
+metals.sbt
+.java-version 
