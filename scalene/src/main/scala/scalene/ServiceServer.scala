@@ -14,7 +14,7 @@ class ServiceServer[I,O](
 
   private val codec = codecFactory(processRequest)
 
-  private val pendingRequests = new LinkedList[Async[O]]
+  private val pendingRequests = new collection.mutable.ArrayDeque[Async[O]]
 
   final def processRequest(request: I): Unit = {
     val async = try {
@@ -23,7 +23,7 @@ class ServiceServer[I,O](
       case e: Exception => ConstantAsync(Success(requestHandler.handleError(Some(request), e)))
     }
 
-    pendingRequests.add(async)
+    pendingRequests.append(async)
     if (pendingRequests.size == 1) {
       async.onComplete{_ => _handle.foreach{_.requestWrite()}}
     }
@@ -44,11 +44,11 @@ class ServiceServer[I,O](
   def encoder = codec
 
   protected def hasNextOutputItem(): Boolean = {
-    pendingRequests.size > 0 && pendingRequests.peek.result.isDefined
+    !pendingRequests.isEmpty && pendingRequests.head.result.isDefined
   }
   protected def nextOutputItem(): O = {
     //TODO, failure should include request
-    pendingRequests.remove.result.get match {
+    pendingRequests.removeHead().result.get match {
       case Success(value) => value
       case Failure(ex) => requestHandler.handleError(None, ex)
     }
