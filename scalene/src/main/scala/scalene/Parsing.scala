@@ -7,28 +7,29 @@ package scalene
 import java.nio.ByteBuffer
 import java.util.Arrays
 
-case class BoundedArray(raw: Array[Byte], length: Int) {
+case class BoundedArray(raw: Array[Byte], start: Int, length: Int) {
 
-  override def toString = new String(raw, length)
+  override def toString = new String(raw, start, length)
 
-  def trimmedCopy = Arrays.copyOf(raw, length)
+  def trimmedCopy = Arrays.copyOfRange(raw, start, start + length)
 
 }
 object BoundedArray {
-  def apply(full: Array[Byte]): BoundedArray = BoundedArray(full, full.length)
+  def apply(full: Array[Byte]): BoundedArray = BoundedArray(full, 0, full.length)
 }
 
-trait FastArrayBuilding[T] {
+trait FastArrayBuilding {
 
   def initSize: Int
   def shrinkOnComplete: Boolean
-  def onComplete(array: BoundedArray): T
+  def onComplete(array: BoundedArray): Boolean
 
   private var build: Array[Byte] = new Array[Byte](initSize)
 
+  private var lastWritePos = 0
   private var writePos = 0
 
-  def written = writePos
+  def written = writePos - lastWritePos
 
   @inline final private def grow() {
     val nb = new Array[Byte](build.length * 2)
@@ -64,12 +65,14 @@ trait FastArrayBuilding[T] {
     writePos += bytes.length
   }
 
-  @inline final def complete(): T = {
-    val res = onComplete(BoundedArray(build, writePos))
-    writePos = 0
-    //if (shrinkOnComplete && build.length > initSize) {
-      build = new Array(initSize)
-    //}
+  @inline final def complete(): Boolean = {
+    val res = onComplete(BoundedArray(build, lastWritePos, writePos - lastWritePos))
+    lastWritePos = writePos
+    if (res) {
+      //build = new Array(initSize)
+      writePos = 0
+      lastWritePos = 0
+    }
     res
   }
 }
@@ -79,7 +82,7 @@ object BodyCode {
 }
 import BodyCode._
 
-trait LineParser extends FastArrayBuilding[Boolean] {
+trait LineParser extends FastArrayBuilding {
   private val CR = '\r'.toByte
   private val LF = '\n'.toByte
 
@@ -138,7 +141,7 @@ object ParsingUtils {
     if (substringLower.length > candidate.length) {
       false
     } else {        
-      var i = 0
+      var i = candidate.start
       while (i < substringLower.length && (candidate.raw(i) == substringLower(i) || candidate.raw(i) + 32 == substringLower(i))) {
         i += 1
       }

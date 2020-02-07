@@ -28,7 +28,7 @@ trait HttpMessageDecoder extends LineParser {
 
   def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData)
 
-  final val zeroFirstLine = BoundedArray(new Array[Byte](0), 0)
+  final val zeroFirstLine = BoundedArray(new Array[Byte](0))
   private val NoBodyStream = BodyData.Stream(StreamBuilder(NoBodyManager))
 
   private var messages = 0L
@@ -109,7 +109,8 @@ trait HttpMessageDecoder extends LineParser {
     var i = line.length - 1
     var build = 0
     var mult = 1
-    while (i >= paddedStartIndex) {
+    val start = paddedStartIndex + line.start
+    while (i >= start) {
       val c = line.raw(i)
       if (c != ' '.toByte) {
         build += (c - 48) * mult
@@ -330,13 +331,14 @@ object NoBodyManager extends BasicStreamManager(0) {
 }
 
 //This collects raw data into an array.  Should not contain chunk headers
-class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuilding[Unit] {
+class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuilding {
 
   def initSize = 100
   def shrinkOnComplete = true
 
-  def onComplete(arr: BoundedArray): Unit = {
+  def onComplete(arr: BoundedArray): Boolean = {
     result.succeed(ReadBuffer(arr.trimmedCopy))
+    false
   }
 
   val result = new PromiseAsync[ReadBuffer]
