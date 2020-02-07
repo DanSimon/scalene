@@ -51,7 +51,8 @@ case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extend
   val ok = Right(())
   val error = Left(ParseError.notFound(s"did not match $prefixString"))
   def parse(req: RequestContext): Result[Unit] = {
-    if (Arrays.equals(req.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)) {
+    val fl = req.request.boundedFirstLine
+    if (Arrays.equals(fl.raw, fl.start, fl.start + bytes.length, bytes, 0, bytes.length)) {
       req.pathIterator.advance(prefix.size)
       ok
     } else {

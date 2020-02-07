@@ -19,6 +19,7 @@ trait HttpRequest extends HttpMessage {
   def urlBytes: Array[Byte]
 
   def firstLine: Array[Byte]
+  def boundedFirstLine: BoundedArray = ???
 
   def encodeFirstLine(buffer: WriteBuffer) : Unit = {
     buffer.write(method.bytes)
@@ -48,20 +49,22 @@ class QueryParameters(str: String) {
 }
 
 //firstLine does not include newline
-class ParsedHttpRequest(val firstLine: Array[Byte], val headers: Headers, val body: Body) extends HttpRequest {
+class ParsedHttpRequest(val _firstLine: BoundedArray, val headers: Headers, val body: Body) extends HttpRequest {
+  def firstLine = _firstLine.trimmedCopy
+  override def boundedFirstLine = _firstLine
   def urlBytes = url.getBytes
-  private def urlStart = method.bytes.length + 1
-  private def urlLength = firstLine.length - 9 - urlStart
-  lazy val url = new String(firstLine, urlStart, urlLength)
+  private def urlStart = _firstLine.start + method.bytes.length + 1
+  private def urlLength = _firstLine.length - 9 - urlStart
+  lazy val url = new String(_firstLine.raw, urlStart, urlLength)
 
-  def version = if (firstLine(firstLine.length - 1) == '0'.toByte) HttpVersion.`1.0` else HttpVersion.`1.1`
+  def version = if (_firstLine.raw(firstLine.length - 1) == '0'.toByte) HttpVersion.`1.0` else HttpVersion.`1.1`
   lazy val  method = {
     import Method._
     def fail = throw new Exception(s"Invalid http method")
-    firstLine(0) match {
+    _firstLine.raw(0) match {
       case 'G' => Get
       case 'P' =>
-        firstLine(1) match {
+        _firstLine.raw(1) match {
           case 'A' => Patch
           case 'O' => Post
           case 'U' => Put
@@ -76,6 +79,7 @@ class ParsedHttpRequest(val firstLine: Array[Byte], val headers: Headers, val bo
     }
   }
 
+  /*
   def urlEquals(url: Array[Byte]): Boolean = {
     val sp = {
       var i = 3
@@ -100,6 +104,7 @@ class ParsedHttpRequest(val firstLine: Array[Byte], val headers: Headers, val bo
       Arrays.mismatch(firstLine, urlStart, urlLength + urlStart, url, 0, urlLength) == -1
     } else false
   }
+  */
 
 
   //def methodEquals(method: Method): Boolean = ParsingUtils.caseInsensitiveSubstringMatch(firstLine, method.bytes)

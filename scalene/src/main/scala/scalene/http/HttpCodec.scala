@@ -26,7 +26,7 @@ trait HttpMessageDecoder extends LineParser {
   def initSize = 100
   val includeNewline = false
 
-  def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData)
+  def finishDecode(firstLine: BoundedArray, headers: Headers, body: BodyData)
 
   final val zeroFirstLine = BoundedArray(new Array[Byte](0))
   private val NoBodyStream = BodyData.Stream(StreamBuilder(NoBodyManager))
@@ -67,7 +67,7 @@ trait HttpMessageDecoder extends LineParser {
       }
     }
 
-    finishDecode(buildFirstLine.trimmedCopy,  headers, body)
+    finishDecode(buildFirstLine,  headers, body)
     //if the body stream was unused we have to complete it ourselves so the data is still consumed
     currentStreamManager.setBlackHoleIfUnset()
     currentStreamManager = NoBodyManager
@@ -205,7 +205,7 @@ class HttpServerCodec(
 ) 
 extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder  with HttpMessageEncoding[HttpResponse] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData) {
+  final def finishDecode(firstLine: BoundedArray, headers: Headers, body: BodyData) {
     onDecode(new ParsedHttpRequest(firstLine, headers, Body(body, None)))
   }
 
@@ -218,8 +218,8 @@ class HttpClientCodec(
 ) 
 extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder  with HttpMessageEncoding[HttpRequest] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData) {
-    onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
+  final def finishDecode(firstLine: BoundedArray, headers: Headers, body: BodyData) {
+    onDecode(new ParsedHttpResponse(firstLine.trimmedCopy, headers, Body(body, None)))
   }
 
 }
