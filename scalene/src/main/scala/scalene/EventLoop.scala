@@ -30,7 +30,7 @@ class EventLoop(
 
   private val readBuffer = ByteBuffer.allocateDirect(1024 * 12)
 
-  private val writeBuffer = new WriteBufferImpl(1024 * 128)
+  private val writeBuffer = new WriteBufferImpl(1024 * 16)
 
   private val activeConnections = collection.mutable.Map[Long, ConnectionManager]()
 

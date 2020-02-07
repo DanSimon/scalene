@@ -3,8 +3,8 @@ package scalene.routing
 import scalene.http._
 import scalene.corerouting._
 
-class LazyPathIterator(getUrl: () => String, startIndex: Int = 1) extends Iterator[String] {
-  private lazy val pathComponents = getUrl().split("/")
+class LazyPathIterator(request: HttpRequest, startIndex: Int = 1) extends Iterator[String] {
+  private lazy val pathComponents = request.url.split("/")
   private var currentIndex = startIndex
 
   def hasNext = currentIndex < pathComponents.size
@@ -19,14 +19,14 @@ class LazyPathIterator(getUrl: () => String, startIndex: Int = 1) extends Iterat
     currentIndex += num
   }
 
-  def cclone = new LazyPathIterator(getUrl, currentIndex)
+  def cclone = new LazyPathIterator(request, currentIndex)
 }
 
 
 class RequestContext(val request: HttpRequest, val routingContext: RoutingContext, val pathIterator: LazyPathIterator) extends Clonable[RequestContext] with Iterator[String]{
 
   def this(request: HttpRequest, routingContext: RoutingContext) = {
-    this(request, routingContext, new LazyPathIterator(() => request.url))
+    this(request, routingContext, new LazyPathIterator(request))
   }
 
   //used when branching
