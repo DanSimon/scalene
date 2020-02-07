@@ -28,7 +28,7 @@ trait HttpMessageDecoder extends LineParser {
 
   def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData)
 
-  final val zeroFirstLine = new Array[Byte](0)
+  final val zeroFirstLine = BoundedArray(new Array[Byte](0), 0)
   private val NoBodyStream = BodyData.Stream(StreamBuilder(NoBodyManager))
 
   private var messages = 0L
@@ -37,7 +37,7 @@ trait HttpMessageDecoder extends LineParser {
   var currentSize = 0L
   def currentMessageSize: Long = currentSize
 
-  private var buildFirstLine = new Array[Byte](0)
+  private var buildFirstLine = zeroFirstLine
   private var buildHeaders = new LinkedList[Header]
   private var buildContentLength: Option[Int] = None
   private var buildTransferEncoding: Option[TransferEncoding] = None
@@ -67,7 +67,7 @@ trait HttpMessageDecoder extends LineParser {
       }
     }
 
-    finishDecode(buildFirstLine,  headers, body)
+    finishDecode(buildFirstLine.trimmedCopy,  headers, body)
     //if the body stream was unused we have to complete it ourselves so the data is still consumed
     currentStreamManager.setBlackHoleIfUnset()
     currentStreamManager = NoBodyManager
@@ -79,8 +79,8 @@ trait HttpMessageDecoder extends LineParser {
 
   //returns true if we've finished reading the header
   @inline
-  final def onComplete(arr: Array[Byte]): Boolean = {
-    if (arr.size == 0) { //0 size is the blank newline at the end of the head
+  final def onComplete(arr: BoundedArray): Boolean = {
+    if (arr.length == 0) { //0 size is the blank newline at the end of the head
       buildMessage()
       true
     } else {
@@ -96,22 +96,23 @@ trait HttpMessageDecoder extends LineParser {
   }
 
   @inline
-  final protected def parseSpecialHeader(header: Array[Byte]): Unit = {
+  final protected def parseSpecialHeader(header: BoundedArray): Unit = {
     if (buildContentLength.isEmpty && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
       buildContentLength = Some(trimStringToInt(header, Headers.ContentLength.bytes.length + 2))
     } else if (ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.TransferEncoding.bytes)) {
-      buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header))
+      buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header.trimmedCopy))
     }
   }
 
   @inline
-  final private def trimStringToInt(line: Array[Byte], paddedStartIndex: Int): Int = {
+  final private def trimStringToInt(line: BoundedArray, paddedStartIndex: Int): Int = {
     var i = line.length - 1
     var build = 0
     var mult = 1
     while (i >= paddedStartIndex) {
-      if (line(i) != ' '.toByte) {
-        build += (line(i) - 48) * mult
+      val c = line.raw(i)
+      if (c != ' '.toByte) {
+        build += (c - 48) * mult
         mult *= 10
       }
       i -= 1
@@ -282,9 +283,9 @@ class ChunkedStreamManager extends LiveSink[ReadBuffer] with SubBufferSink with 
   private var _isDone = false
   def isDone = _isDone
 
-  def onComplete(line: Array[Byte]): Boolean = {
+  def onComplete(line: BoundedArray): Boolean = {
     if (state == ParsingHead) {
-      val size = Integer.parseInt(new String(line), 16)
+      val size = Integer.parseInt(line.toString, 16)
       if (size == 0) {
         _isDone = true
       } 
@@ -334,8 +335,8 @@ class BodyCollector extends Collector[ReadBuffer, ReadBuffer] with FastArrayBuil
   def initSize = 100
   def shrinkOnComplete = true
 
-  def onComplete(arr: Array[Byte]): Unit = {
-    result.succeed(ReadBuffer(arr))
+  def onComplete(arr: BoundedArray): Unit = {
+    result.succeed(ReadBuffer(arr.trimmedCopy))
   }
 
   val result = new PromiseAsync[ReadBuffer]

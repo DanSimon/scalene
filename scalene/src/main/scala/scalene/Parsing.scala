@@ -7,11 +7,22 @@ package scalene
 import java.nio.ByteBuffer
 import java.util.Arrays
 
+case class BoundedArray(raw: Array[Byte], length: Int) {
+
+  override def toString = new String(raw, length)
+
+  def trimmedCopy = Arrays.copyOf(raw, length)
+
+}
+object BoundedArray {
+  def apply(full: Array[Byte]): BoundedArray = BoundedArray(full, full.length)
+}
+
 trait FastArrayBuilding[T] {
 
   def initSize: Int
   def shrinkOnComplete: Boolean
-  def onComplete(array: Array[Byte]): T
+  def onComplete(array: BoundedArray): T
 
   private var build: Array[Byte] = new Array[Byte](initSize)
 
@@ -54,11 +65,11 @@ trait FastArrayBuilding[T] {
   }
 
   @inline final def complete(): T = {
-    val res = onComplete(Arrays.copyOf(build, writePos))
+    val res = onComplete(BoundedArray(build, writePos))
     writePos = 0
-    if (shrinkOnComplete && build.length > initSize) {
+    //if (shrinkOnComplete && build.length > initSize) {
       build = new Array(initSize)
-    }
+    //}
     res
   }
 }
@@ -123,12 +134,12 @@ trait LineParser extends FastArrayBuilding[Boolean] {
 
 object ParsingUtils {
 
-  def caseInsensitiveSubstringMatch(candidate: Array[Byte], substringLower: Array[Byte]): Boolean = {
-    var i = 0
+  def caseInsensitiveSubstringMatch(candidate: BoundedArray, substringLower: Array[Byte]): Boolean = {
     if (substringLower.length > candidate.length) {
       false
     } else {        
-      while (i < substringLower.length && (candidate(i) == substringLower(i) || candidate(i) + 32 == substringLower(i))) {
+      var i = 0
+      while (i < substringLower.length && (candidate.raw(i) == substringLower(i) || candidate.raw(i) + 32 == substringLower(i))) {
         i += 1
       }
       i == substringLower.length

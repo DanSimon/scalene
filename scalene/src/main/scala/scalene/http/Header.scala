@@ -23,15 +23,15 @@ trait Header {
   }
 }
 
-class StaticHeader(val encodedLine: Array[Byte]) extends Header {
+class StaticHeader(val encodedLine: BoundedArray) extends Header {
 
-  def encodedLine(time: TimeKeeper) : Array[Byte] = encodedLine
+  def encodedLine(time: TimeKeeper) : Array[Byte] = encodedLine.trimmedCopy
 
-  def this(key: String, value: String) = this(s"$key: $value\r\n".getBytes)
+  def this(key: String, value: String) = this(BoundedArray(s"$key: $value\r\n".getBytes))
 
-  private lazy val valueStart = encodedLine.indexOf(':'.toByte) + 1
-  lazy val key                = new String(encodedLine, 0, valueStart - 1).toLowerCase
-  lazy val value              = new String(encodedLine, valueStart, encodedLine.length - valueStart).trim
+  private lazy val valueStart = encodedLine.raw.indexOf(':'.toByte) + 1
+  lazy val key                = new String(encodedLine.raw, 0, valueStart - 1).toLowerCase
+  lazy val value              = new String(encodedLine.raw, valueStart, encodedLine.length - valueStart).trim
 
 }
 

@@ -102,7 +102,7 @@ class ParsedHttpRequest(val firstLine: Array[Byte], val headers: Headers, val bo
   }
 
 
-  def methodEquals(method: Method): Boolean = ParsingUtils.caseInsensitiveSubstringMatch(firstLine, method.bytes)
+  //def methodEquals(method: Method): Boolean = ParsingUtils.caseInsensitiveSubstringMatch(firstLine, method.bytes)
 }
 
 case class BasicHttpRequest(method: Method, url: String, headers: Headers, body: Body) extends HttpRequest {
