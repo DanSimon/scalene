@@ -29,6 +29,17 @@ trait HttpRequest extends HttpMessage {
     buffer.write(Newline)
   }
 
+  def fastMethodUrl(method: Method, url: Array[Byte]): Boolean = {
+    if (firstLine(0) == method.lFirst || firstLine(0) == method.uFirst) {
+      val methodLength = method.bytes.length
+      val urlLength = url.length
+      val urlStart = methodLength + 1
+      //url.length <= firstLine.length - method.bytes.length &&
+      firstLine(urlStart + urlLength) == SPACE_BYTE &&
+      Arrays.mismatch(firstLine, urlStart, urlLength + urlStart, url, 0, urlLength) == -1
+    } else false
+  }
+
   
 }
 
@@ -90,16 +101,6 @@ class ParsedHttpRequest(val firstLine: Array[Byte], val headers: Headers, val bo
     }
   }
 
-  def fastMethodUrl(method: Method, url: Array[Byte]): Boolean = {
-    if (firstLine(0) == method.lFirst || firstLine(0) == method.uFirst) {
-      val methodLength = method.bytes.length
-      val urlLength = url.length
-      val urlStart = methodLength + 1
-      //url.length <= firstLine.length - method.bytes.length &&
-      firstLine(urlStart + urlLength) == SPACE_BYTE &&
-      Arrays.mismatch(firstLine, urlStart, urlLength + urlStart, url, 0, urlLength) == -1
-    } else false
-  }
 
 
   def methodEquals(method: Method): Boolean = ParsingUtils.caseInsensitiveSubstringMatch(firstLine, method.bytes)
