@@ -127,9 +127,8 @@ extends ConnectionHandle {
           _bytesWritten += written
           if (!readBuffer.isEmpty) {
             writeOverflowBuffer = Some(readBuffer.readCopy)
+            channel.enableWriteReady()
           }
-          //println(s"${written} written : ${buffer.isEmpty}")
-          channel.enableWriteReady()
         } else {
           channel.disableWriteReady()
         }
