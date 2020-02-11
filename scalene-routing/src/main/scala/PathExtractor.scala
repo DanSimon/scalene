@@ -12,7 +12,7 @@ case class ConstantPrefixPath(prefixPieces: List[String]) extends Parser[Request
   val prefix = "/" + pieces.mkString("/")
   val bytes = prefix.getBytes
   
-  def size = pieces.size
+  val size = pieces.size
 
   def add(segment: String) = copy(prefixPieces = this.prefixPieces :+ segment)
 

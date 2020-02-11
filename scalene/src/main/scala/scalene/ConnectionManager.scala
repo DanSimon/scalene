@@ -62,14 +62,22 @@ extends ConnectionHandle {
 
   def timeOpen = channel.time() - startTime
 
+  private var inRead = false
+  private var writeRequested = false
+
   def disconnect() {
     //TODO: proper shutdown sequence
     channel.close()
   }
 
   def requestWrite() {
-    channel.enableWriteReady()
+    if (inRead) {
+      writeRequested = true
+    } else {
+      channel.enableWriteReady()
+    }
   }
+
 
   def disableReads() {
     channel.disableReads()
@@ -90,8 +98,11 @@ extends ConnectionHandle {
   def onRead(buffer: ReadBuffer, wrt: ReadWriteBuffer): Unit = {
     _lastReadTime = channel.time()
     _bytesRead = buffer.size
+    inRead = true
     handler.onReadData(buffer)
-    if (channel.writeReadyEnabled) {
+    inRead = false
+    if (writeRequested) {
+      writeRequested = false
       onWrite(wrt)
     }
   }
@@ -116,8 +127,8 @@ extends ConnectionHandle {
           _bytesWritten += written
           if (!readBuffer.isEmpty) {
             writeOverflowBuffer = Some(readBuffer.readCopy)
+            channel.enableWriteReady()
           }
-          //println(s"${written} written : ${buffer.isEmpty}")
         } else {
           channel.disableWriteReady()
         }

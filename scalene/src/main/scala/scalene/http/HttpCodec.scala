@@ -97,10 +97,13 @@ trait HttpMessageDecoder extends LineParser {
 
   @inline
   final protected def parseSpecialHeader(header: Array[Byte]): Unit = {
-    if (buildContentLength.isEmpty && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
-      buildContentLength = Some(trimStringToInt(header, Headers.ContentLength.bytes.length + 2))
-    } else if (ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.TransferEncoding.bytes)) {
-      buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header))
+    val b = header(0)
+    if (b == 'c' || b == 'C' || b == 't' || b == 'T') {
+      if (buildContentLength.isEmpty && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
+        buildContentLength = Some(trimStringToInt(header, Headers.ContentLength.bytes.length + 2))
+      } else if (ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.TransferEncoding.bytes)) {
+        buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header))
+      }
     }
   }
 
