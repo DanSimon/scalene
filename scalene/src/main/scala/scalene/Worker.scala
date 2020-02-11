@@ -28,6 +28,7 @@ class ServerWorker(
   server: Actor[WorkerToServerMessage],
   handlerFactory: AsyncContext => ServerConnectionHandler,
   timeKeeper: TimeKeeper,
+  config: EventLoopConfig,
   context: Context
 ) extends Receiver[WorkerMessage](context) with Logging {
   implicit val d = context.dispatcher
@@ -36,7 +37,7 @@ class ServerWorker(
     case EventLoopEvent.ConnectionClosed => server.send(WorkerToServerMessage.ConnectionClosed)
   }
 
-  val eventLoop = new EventLoop(timeKeeper, closedRelay)
+  val eventLoop = new EventLoop(config, timeKeeper, closedRelay)
 
   def receive(message: WorkerMessage) = message match {
     case ServerToWorkerMessage.NewConnection(channel) => {

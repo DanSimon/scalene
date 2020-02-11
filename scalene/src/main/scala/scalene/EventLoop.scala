@@ -19,7 +19,23 @@ object EventLoopEvent {
 
 object Select extends NoWakeMessage
 
+case class EventLoopConfig(
+  readBufferSize: Int,
+  writeBufferSize: Int,
+  timerTickMillis: Int
+)
+
+object EventLoopConfig {
+  val Default = EventLoopConfig(
+    readBufferSize = 1024 * 64,
+    writeBufferSize = 1024 * 128,
+    timerTickMillis = 100
+  )
+}
+
+
 class EventLoop(
+  config: EventLoopConfig,
   timeKeeper: TimeKeeper,
   eventReceiver: Actor[EventLoopEvent]
 )(implicit dispatcher: Dispatcher)  extends Logging {
@@ -28,13 +44,13 @@ class EventLoop(
 
   private val selector = Selector.open()
 
-  private val readBuffer = ByteBuffer.allocateDirect(1024 * 12)
+  private val readBuffer = ByteBuffer.allocateDirect(config.readBufferSize)
 
-  private val writeBuffer = new WriteBufferImpl(1024 * 128)
+  private val writeBuffer = new WriteBufferImpl(config.writeBufferSize)
 
   private val activeConnections = collection.mutable.Map[Long, ConnectionManager]()
 
-  private val timer = new Timer(50)
+  private val timer = new Timer(config.timerTickMillis)
 
   val environment = new AsyncContextImpl(timeKeeper, timer, dispatcher, this)
 

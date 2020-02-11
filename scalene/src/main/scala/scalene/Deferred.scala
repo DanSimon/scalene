@@ -84,7 +84,7 @@ class DeferredExecutor(implicit p: Pool) {
 
   private val receiver = SimpleReceiver[EventLoopEvent]{e => ()}
 
-  private val eventLoop = new EventLoop(timeKeeper, receiver)
+  private val eventLoop = new EventLoop(EventLoopConfig.Default, timeKeeper, receiver)
 
   trait GenericExecutor {
     def execute()

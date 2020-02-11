@@ -16,7 +16,7 @@ class FutureClient[Request, Response](
 
   val receiver = SimpleReceiver[EventLoopEvent]{e => ()}
 
-  val eventLoop = new EventLoop(timeKeeper, receiver)
+  val eventLoop = new EventLoop(EventLoopConfig.Default, timeKeeper, receiver)
 
   sealed trait ReceiverMessage
   case class AsyncRequest(request: Request, promise: Promise[Response]) extends ReceiverMessage

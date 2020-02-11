@@ -12,7 +12,8 @@ case class ServerSettings(
   addresses: Seq[String],
   maxConnections: Int,
   tcpBacklogSize: Option[Int],
-  numWorkers: Option[Int]
+  numWorkers: Option[Int],
+  workerConfig: EventLoopConfig
 )
 
 object ServerSettings {
@@ -22,7 +23,8 @@ object ServerSettings {
     addresses = Nil,
     maxConnections = 10000,
     tcpBacklogSize = None,
-    numWorkers = None
+    numWorkers = None,
+    workerConfig = EventLoopConfig.Default
   )
 
 }
@@ -107,6 +109,7 @@ class ServerActor(
         self.specialize[WorkerToServerMessage],
         handlerFactory,
         timeKeeper,
+        settings.workerConfig,
         ctx
       )).specialize[ServerToWorkerMessage]
       workers.append(actor)
