@@ -34,7 +34,7 @@ object Main extends App {
 
   
   implicit val pool = new Pool
-  val worldClient = MiniSQL.client("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass", None)
+  //val worldClient = MiniSQL.client("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass", None)
 
   val random = new java.util.Random
   
@@ -51,9 +51,7 @@ object Main extends App {
   }
 
   val dbRoute = GET / "db" to {_ =>
-    worldClient.query{session =>
-      randomWorld(session).map{_.ok}.getOrElse("N/A".notFound)
-    }
+    ???
   }
 
   val QueryNum = ![Int]
@@ -61,15 +59,7 @@ object Main extends App {
     .recover{_ => 1}
 
   val multiRoute = (GET / "queries" / QueryNum) to {num =>
-    worldClient.query{session =>
-      val worlds = new Array[DBRouteMessage](num)
-      var i  = 0
-      while (i < num) {
-        worlds(i) = randomWorld(session).get
-        i += 1
-      }
-      MultiDBRouteMessage(worlds).ok
-    }
+    ???
   }
 
   val plaintextBody = Body.plain("Hello, World!")

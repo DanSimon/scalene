@@ -16,16 +16,25 @@ class ServiceServer[I,O](
 
   private val pendingRequests = new LinkedList[Async[O]]
 
+  private var tempWrite: Option[WriteBuffer] = None
+
   final def processRequest(request: I): Unit = {
     val async = try {
       requestHandler.handleRequest(request)
     } catch {
       case e: Exception => ConstantAsync(Success(requestHandler.handleError(Some(request), e)))
     }
-
-    pendingRequests.add(async)
-    if (pendingRequests.size == 1) {
-      async.onComplete{_ => _handle.foreach{_.requestWrite()}}
+    if (!isStreaming && pendingRequests.isEmpty && async.result.isDefined && tempWrite.isDefined) {
+      val response = async.result.get match {
+        case Success(value) => value
+        case Failure(ex) => requestHandler.handleError(None, ex)
+      }
+      writeItem(response, tempWrite.get)
+    } else {
+      pendingRequests.add(async)
+      if (pendingRequests.size == 1) {
+        async.onComplete{_ => _handle.foreach{_.requestWrite()}}
+      }
     }
   }
 
@@ -36,8 +45,10 @@ class ServiceServer[I,O](
 
   var _handle: Option[ConnectionHandle] = None
 
-  final def onReadData(buffer: ReadBuffer) {
+  final def onReadData(buffer: ReadBuffer, writeOpt: Option[WriteBuffer]) {
+    tempWrite = writeOpt
     codec.decode(buffer)
+    tempWrite = None
   }
 
 

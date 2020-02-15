@@ -99,9 +99,22 @@ extends ConnectionHandle {
     _lastReadTime = channel.time()
     _bytesRead = buffer.size
     inRead = true
-    handler.onReadData(buffer)
+    val writeOpt = if (writeOverflowBuffer.isDefined) {
+      None
+    } else {
+      Some(wrt)
+    }
+    handler.onReadData(buffer, writeOpt)
     inRead = false
-    if (writeRequested) {
+    if (!wrt.isEmpty) {
+      val readBuffer = wrt.data
+      val written = channel.write(readBuffer)
+      _bytesWritten += written
+      if (!readBuffer.isEmpty) {
+        writeOverflowBuffer = Some(readBuffer.readCopy)
+        channel.enableWriteReady()
+      }
+    } else if (writeRequested) {
       writeRequested = false
       onWrite(wrt)
     }
