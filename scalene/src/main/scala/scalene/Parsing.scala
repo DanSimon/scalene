@@ -14,6 +14,7 @@ trait FastArrayBuilding[T] {
   def onComplete(array: Array[Byte]): T
 
   private var build: Array[Byte] = new Array[Byte](initSize)
+  private var buildLength: Int = initSize
 
   private var writePos = 0
 
@@ -23,10 +24,11 @@ trait FastArrayBuilding[T] {
     val nb = new Array[Byte](build.length * 2)
     System.arraycopy(build, 0, nb, 0, build.length)
     build = nb
+    buildLength *= 2
   }
 
   @inline final def write(b: Byte) {
-    if (writePos == build.length) {
+    if (writePos == buildLength) {
       grow()
     }
     build(writePos) = b
