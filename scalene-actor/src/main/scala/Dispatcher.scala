@@ -75,15 +75,34 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
 
   class Looper extends Thread(name) {
 
+    val LockCountdownInit = 50
+    val PollTimeoutMillis = 10
+
     val lock = new Object
+    var lockCountdown = LockCountdownInit
+
 
     override def run() : Unit = {
       while (running.get()) {
         try {
-          processDispatcherMessage(messageQueue.take())
+          val message = if (messageQueue.isEmpty){
+            if (lockCountdown == 0) {
+              processDispatcherMessage(messageQueue.take())
+              lockCountdown = LockCountdownInit
+            } else {
+              lockCountdown -= 1
+              val m = messageQueue.poll(PollTimeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+              if (m != null) {
+                processDispatcherMessage(m)
+              }
+            }
+          } else {
+            processDispatcherMessage(messageQueue.poll())
+          }
         } catch {
           case e: InterruptedException => {}
           case e: Exception => {
+            println(e.toString)
             running.set(false)
           }
         }
