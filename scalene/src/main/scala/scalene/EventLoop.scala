@@ -17,7 +17,9 @@ object EventLoopEvent {
   case object ConnectionClosed extends EventLoopEvent
 }
 
-object Select extends NoWakeMessage
+sealed trait SelectMessage
+object Select extends SelectMessage
+case class SelectBackoff(num: Int) extends SelectMessage
 
 class EventLoop(
   timeKeeper: TimeKeeper,
@@ -38,13 +40,24 @@ class EventLoop(
 
   val environment = new AsyncContextImpl(timeKeeper, timer, dispatcher, this)
 
-  private val selectActor: Actor[Select.type] = SimpleReceiver[Select.type]{_ => 
-    processSelect()
-    if (selector.selectNow() > 0) {
-      selectActor.send(Select)
-    } else {
-      coSelect.send(Select)
-    }
+  private val selectActor: Actor[SelectMessage] = SimpleReceiver[SelectMessage]{
+    case Select =>
+      processSelect()
+      if (selector.selectNow() > 0) {
+        selectActor.send(Select)
+      } else {
+        selectActor.send(SelectBackoff(50))
+      }
+    case SelectBackoff(num) =>
+      if (selector.select(50) > 0) {
+        selectActor.send(Select)
+      } else {
+        if (num == 0) {
+          coSelect.send(Select)
+        } else {
+          selectActor.send(SelectBackoff(num - 1))
+        }
+      }
   }
 
   val selectDispatcher = dispatcher.pool.createDispatcher("selector-{ID}")
