@@ -43,7 +43,9 @@ class EventLoop(
     if (selector.selectNow() > 0) {
       selectActor.send(Select)
     } else {
-      coSelect.send(Select)
+      select.select(10)
+      selectActor.send(Select)
+      //coSelect.send(Select)
     }
   }
 
