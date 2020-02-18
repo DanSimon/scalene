@@ -31,12 +31,12 @@ object Main extends App {
   val settings = Settings.basic(
     serverName = "scalene",
     port = 9876,
-    server = ServerSettings.Default.copy(numWorkers = Some(1))
+    server = ServerSettings.Default//.copy(numWorkers = Some(1))
   )
 
   
   implicit val pool = new Pool
-  val worldClient = MiniSQL.client("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass", None)
+  val worldClient = MiniSQL.client("world", "jdbc:postgresql://localhost:5432/hello_world", "benchmarkdbuser", "benchmarkdbpass", Some(1))
 
   val random = new java.util.Random
   
