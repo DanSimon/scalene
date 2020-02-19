@@ -132,20 +132,19 @@ object C {
 
     val running = new java.util.concurrent.atomic.AtomicBoolean(true)
 
-    val busyWaitMillis = 20
+    val busyWaitMillis = 1
 
     class WorkerRunner(id: Int, worker: SimpleWorker[T]) extends Thread(name) {
       override def run() : Unit = {
         println(s"worker $id starting up")
         while (running.get()) {
           try {
-              worker.process(queue.take())
-            /*
+              //worker.process(queue.take())
             val busyStart = System.currentTimeMillis
             var gotSomething = false
             while (!gotSomething && System.currentTimeMillis - busyStart < busyWaitMillis) {
               val m = queue.poll()
-              Thread.onSpinWait()
+              //Thread.onSpinWait()
               if (m != null) {
                 gotSomething = true
                 worker.process(m)
@@ -155,7 +154,6 @@ object C {
               println(s"$name - PARK")
               worker.process(queue.take())
             }
-            */
           } catch {
             case e: InterruptedException => {}
             case e: Exception => {
