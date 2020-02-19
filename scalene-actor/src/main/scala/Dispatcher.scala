@@ -89,7 +89,7 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
             var gotSomething = false
             while (!gotSomething && System.currentTimeMillis - busyStart < busyWaitMillis) {
               val m = messageQueue.poll()
-              Thread.onSpinWait()
+              //Thread.onSpinWait()
               if (m != null) {
                 gotSomething = true
                 processDispatcherMessage(m)
