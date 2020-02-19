@@ -24,9 +24,10 @@ object MiniSQL {
     new MiniSQLClient(connectionName, config)
   }
 
-  def client2(connectionName: String, host: String, username: String, password: String, numWorkers: Int): MiniSQLClient2 = {
-    val config = MiniSQLConfig(host, username, password, numWorkers)
-    new MiniSQLClient2(connectionName, config, numWorkers)
+  def client2(connectionName: String, host: String, username: String, password: String, numWorkers: Option[Int]): MiniSQLClient2 = {
+    val workers = numWorkers.getOrElse(Runtime.getRuntime.availableProcessors())
+    val config = MiniSQLConfig(host, username, password, workers)
+    new MiniSQLClient2(connectionName, config)
   }
 }
 
@@ -87,7 +88,7 @@ class MiniSQLClient(connectionName: String, config: MiniSQLConfig)(implicit pool
 
 }
 
-class MiniSQLClient2(connectionName: String, config: MiniSQLConfig, numWorkers: Int) {
+class MiniSQLClient2(connectionName: String, config: MiniSQLConfig) {
 
   trait QueryExecutor {
     def execute(session: MiniSQLSession): Unit
@@ -109,7 +110,7 @@ class MiniSQLClient2(connectionName: String, config: MiniSQLConfig, numWorkers: 
     }
   }
 
-  val pool = new C.SimpleWorkerPool(() => new MiniSQLConnection, "client", numWorkers)
+  val pool = new C.SimpleWorkerPool(() => new MiniSQLConnection, "client", config.numConnections)
 
   def query[T](q: MiniSQLSession => T): Deferred[T] = defer {implicit context =>
     val (promise, async) = context.threadSafePromise[T]()
@@ -131,13 +132,30 @@ object C {
 
     val running = new java.util.concurrent.atomic.AtomicBoolean(true)
 
+    val busyWaitMillis = 20
+
     class WorkerRunner(id: Int, worker: SimpleWorker[T]) extends Thread(name) {
       override def run() : Unit = {
         println(s"worker $id starting up")
         while (running.get()) {
           try {
-            val next = queue.take()
-            worker.process(next)
+              worker.process(queue.take())
+            /*
+            val busyStart = System.currentTimeMillis
+            var gotSomething = false
+            while (!gotSomething && System.currentTimeMillis - busyStart < busyWaitMillis) {
+              val m = queue.poll()
+              Thread.onSpinWait()
+              if (m != null) {
+                gotSomething = true
+                worker.process(m)
+              }
+            }
+            if (!gotSomething) {
+              println(s"$name - PARK")
+              worker.process(queue.take())
+            }
+            */
           } catch {
             case e: InterruptedException => {}
             case e: Exception => {

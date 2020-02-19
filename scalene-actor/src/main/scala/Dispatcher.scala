@@ -75,7 +75,7 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
 
   class Looper extends Thread(name) {
 
-    val busyWaitMillis = 200
+    val busyWaitMillis = 2
     var busyWaitStart = System.currentTimeMillis
 
     val lock = new Object
@@ -96,7 +96,6 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
               }
             }
             if (!gotSomething) {
-              println(s"$name - PARK")
               processDispatcherMessage(messageQueue.take())
             }
           } else {
