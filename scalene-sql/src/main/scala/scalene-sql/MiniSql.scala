@@ -139,7 +139,8 @@ object C {
         println(s"worker $id starting up")
         while (running.get()) {
           try {
-              //worker.process(queue.take())
+              worker.process(queue.take())
+              /*
             val busyStart = System.currentTimeMillis
             var gotSomething = false
             while (!gotSomething && System.currentTimeMillis - busyStart < busyWaitMillis) {
@@ -153,6 +154,7 @@ object C {
             if (!gotSomething) {
               worker.process(queue.take())
             }
+            */
           } catch {
             case e: InterruptedException => {}
             case e: Exception => {
