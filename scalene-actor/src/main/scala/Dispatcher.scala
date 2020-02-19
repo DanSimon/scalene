@@ -75,7 +75,7 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
 
   class Looper extends Thread(name) {
 
-    val busyWaitMillis = 2
+    val busyWaitMillis = 0
     var busyWaitStart = System.currentTimeMillis
 
     val lock = new Object
@@ -84,6 +84,8 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
     override def run() : Unit = {
       while (running.get()) {
         try {
+          processDispatcherMessage(messageQueue.take())
+          /*
           val message = if (messageQueue.isEmpty){
             val busyStart = System.currentTimeMillis
             var gotSomething = false
@@ -101,6 +103,7 @@ class DispatcherImpl(val pool: Pool, val id: Int, val name: String) extends Disp
           } else {
             processDispatcherMessage(messageQueue.poll())
           }
+          */
         } catch {
           case e: InterruptedException => {}
           case e: Exception => {
