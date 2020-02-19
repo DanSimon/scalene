@@ -151,7 +151,6 @@ object C {
               }
             }
             if (!gotSomething) {
-              println(s"$name - PARK")
               worker.process(queue.take())
             }
           } catch {
