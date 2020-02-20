@@ -6,7 +6,7 @@ trait ConnectionHandler {
 
   def onInitialize(env: AsyncContext)
 
-  def onReadData(buffer: ReadBuffer)
+  def onReadData(buffer: ReadBuffer, immediateWrite: Option[WriteBuffer])
 
   def onWriteData(buffer: WriteBuffer): Boolean
 

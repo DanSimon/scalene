@@ -83,7 +83,7 @@ class BasicClient[Request,Response](
   }
 
 
-  final def onReadData(buffer: ReadBuffer) {
+  final def onReadData(buffer: ReadBuffer, opt: Option[WriteBuffer]) {
     codec.decode(buffer)
   }
 
@@ -167,29 +167,36 @@ trait OutputManager[T] {
 
   private var liveOutputStream: Option[StreamOutputSink] = None
 
+  protected def isStreaming = liveOutputStream.isDefined
+
   protected def hasNextOutputItem(): Boolean
   protected def nextOutputItem(): T
   protected def encoder: MessageEncoder[T]
   protected def onOutputError(reason: Throwable): Unit
 
+  final protected def writeItem(item: T, buffer: WriteBuffer): Unit = {
+    encoder.encode(item, buffer) match {
+      case None => {}
+      case Some(streamBuilder) => {
+        val sink = new StreamOutputSink with BufferedSink[Writable] {
+
+          override def onClose(): Unit = {
+            liveOutputStream = None
+          }
+          override def onError(reason: Throwable) : Unit = {
+            onOutputError(reason)
+          }
+        }
+        streamBuilder.complete(sink)
+        liveOutputStream = Some(sink)
+      }
+    }
+
+  }
+
   final def onWriteData(buffer: WriteBuffer) = {
     while (liveOutputStream.isEmpty && !buffer.isOverflowed && hasNextOutputItem()) {
-      encoder.encode(nextOutputItem(), buffer) match {
-        case None => {}
-        case Some(streamBuilder) => {
-          val sink = new StreamOutputSink with BufferedSink[Writable] {
-
-            override def onClose(): Unit = {
-              liveOutputStream = None
-            }
-            override def onError(reason: Throwable) : Unit = {
-              onOutputError(reason)
-            }
-          }            
-          streamBuilder.complete(sink)
-          liveOutputStream = Some(sink)
-        }
-      }
+      writeItem(nextOutputItem(), buffer)
     }
     //return true if we detect there is more immediately available to write
     liveOutputStream match {
