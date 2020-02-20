@@ -19,7 +19,7 @@ object EventLoopEvent {
 
 sealed trait SelectMessage
 object Select extends SelectMessage
-case class SelectBackoff(num: Int) extends SelectMessage
+case class SelectBackoff(start: Long) extends SelectMessage
 
 class EventLoop(
   timeKeeper: TimeKeeper,
