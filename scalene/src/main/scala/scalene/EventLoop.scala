@@ -40,7 +40,7 @@ class EventLoop(
 
   val environment = new AsyncContextImpl(timeKeeper, timer, dispatcher, this)
 
-  val busyWaitMillis = 3
+  val busyWaitMillis = 1
 
   private val selectActor: Actor[SelectMessage] = SimpleReceiver[SelectMessage]{
     case Select =>
