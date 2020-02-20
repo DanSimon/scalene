@@ -40,22 +40,24 @@ class EventLoop(
 
   val environment = new AsyncContextImpl(timeKeeper, timer, dispatcher, this)
 
+  val busyWaitMillis = 3
+
   private val selectActor: Actor[SelectMessage] = SimpleReceiver[SelectMessage]{
     case Select =>
       processSelect()
       if (selector.selectNow() > 0) {
         selectActor.send(Select)
       } else {
-        selectActor.send(SelectBackoff(50))
+        selectActor.send(SelectBackoff(System.currentTimeMillis))
       }
-    case SelectBackoff(num) =>
-      if (selector.select(50) > 0) {
+    case SelectBackoff(start) =>
+      if (selector.selectNow() > 0) {
         selectActor.send(Select)
       } else {
-        if (num == 0) {
+        if (System.currentTimeMillis - start >= busyWaitMillis) {
           coSelect.send(Select)
         } else {
-          selectActor.send(SelectBackoff(num - 1))
+          selectActor.send(SelectBackoff(start))
         }
       }
   }
