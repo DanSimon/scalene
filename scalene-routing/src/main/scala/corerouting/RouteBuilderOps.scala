@@ -107,10 +107,9 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
       new Route[I,FinalOut] {
         val vsetSize = finalSubroutes.vsetSize + builder.size
 
-        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = {
+        def execute(input: I, values: VSet) : Result[Deferred[FinalOut]] = {
           built.executor.executeParsers(input, values) flatMap {unit =>
-            val nextFilters = collectedFilters ++ built.executor.filters
-            finalSubroutes.execute(input, nextFilters, values)
+            finalSubroutes.execute(input, values)
           }
         }
         def document: DocTreeNode = DocTreeNode(value = built.document(EmptyDoc), children = subroutes.map{_.document}.toList)
@@ -123,23 +122,25 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
      * produce an object of the final Response type.
      */
     def to[T](completion: L => T)(implicit as: AsResponse[T, FinalOut]): Route[I,FinalOut] = {
-      val built = builder.build(0)
       new Route[I,FinalOut] {
+        val built = builder.build(0)
         final val vsetSize = builder.size
 
         val ex = built.executor
 
-        final def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = ex.executeParsers(input, values) match {
-          case Right(_) => Right (
-            if (collectedFilters.isEmpty && ex.filters.isEmpty) {
-              as(completion(built.buildResult(values)))
-            } else {
-              ex.executeFilters(input, collectedFilters, values) flatMap { _ => 
+        final def execute(input: I, values: VSet) : Result[Deferred[FinalOut]] = {
+          ex.executeParsers(input, values) match {
+            case Right(_) => Right (
+              if (ex.filters.isEmpty) {
                 as(completion(built.buildResult(values)))
+              } else {
+                ex.executeFilters(input, values) flatMap { _ => 
+                  as(completion(built.buildResult(values)))
+                }
               }
-            }
-          )
-          case Left(err) => Left(err)
+            )
+            case Left(err) => Left(err)
+          }
         }
 
         def document: DocTreeNode = DocTreeNode(built.document(EmptyDoc), Nil)
@@ -154,6 +155,48 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
     }
 
     def map[U](f: L => U): RouteBuilder[U] = RouteBuilder.mapped[L, U](builder, f)
+
+  }
+
+  object NewOps {
+
+    implicit class CompletionJoinerOps[T, O](thing: T)(implicit joiner: CompletionJoiner[T, O]) {
+      def nto(completion: O => FinalOut): Route[I, FinalOut] = joiner.complete(thing, completion)
+    }
+
+    trait CompletionJoiner[T, O] {
+      def complete(builder: T, completion: O => FinalOut): Route[I, FinalOut]
+    }
+
+    object CompletionJoiner {
+      implicit def routeBuilderSyncJoiner[O] = new CompletionJoiner[RouteBuilder[O], O] {
+        def complete(builder: RouteBuilder[O], completion: O => FinalOut): Route[I, FinalOut] = {
+          new Route[I,FinalOut] {
+            val built = builder.build(0)
+            final val vsetSize = builder.size
+
+            val ex = built.executor
+
+            final def execute(input: I, values: VSet) : Result[Deferred[FinalOut]] = {
+              ex.executeParsers(input, values) match {
+                case Right(_) => Right (
+                  if (ex.filters.isEmpty) {
+                    Deferred.successful(completion(built.buildResult(values)))
+                  } else {
+                    ex.executeFilters(input, values) flatMap { _ => 
+                      Deferred.successful(completion(built.buildResult(values)))
+                    }
+                  }
+                )
+                case Left(err) => Left(err)
+              }
+            }
+
+            def document: DocTreeNode = DocTreeNode(built.document(EmptyDoc), Nil)
+          }
+        }
+      }
+    }
 
   }
 

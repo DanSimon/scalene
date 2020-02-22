@@ -50,8 +50,13 @@ case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extend
   val bytes = prefixString.getBytes
   val ok = Right(())
   val error = Left(ParseError.notFound(s"did not match $prefixString"))
-  def parse(req: RequestContext): Result[Unit] = {
-    if (Arrays.equals(req.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)) {
+
+  @inline final def isMatch(req: RequestContext): Boolean = {
+    Arrays.equals(req.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)
+  }
+
+  final def parse(req: RequestContext): Result[Unit] = {
+    if (isMatch(req)) {
       req.pathIterator.advance(prefix.size)
       ok
     } else {
@@ -60,6 +65,22 @@ case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extend
   }
 
   override def document(p: ParserDoc) = prefix.document(p).copy(method = method.name.toString)
+}
+
+object ExactMatchPath {
+  implicit def ExactMatchCompletionJoiner = new NewOps.CompletionJoiner[ExactMatchPath, Unit] {
+    def complete(m: ExactMatchPath, completion: Unit => HttpResponse) = new Route[RequestContext, HttpResponse] {
+      def execute(input: RequestContext, vset: VSet) = if (m.isMatch(input)) {
+        Right(Deferred.successful(completion(())))
+      } else {
+        m.error
+      }
+
+      val vsetSize = 0
+
+      def document = ???
+    }
+  }
 }
 
 trait AsPathParser[T, Out] {
@@ -162,5 +183,6 @@ trait PathParsing extends LowPriorityPathParsing {
     type Out = ExactMatchPath
     def apply(a: Method, b: String) = ExactMatchPath(a.method, ConstantPrefixPath(b :: Nil))
   }
+
 
 }

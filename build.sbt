@@ -17,7 +17,8 @@ val baseSettings = Seq(
     "ch.qos.logback"               %  "logback-classic"      % "1.2.2",
     "org.slf4j"              %  "slf4j-api"                   % "1.7.6",
     "org.scalactic" %% "scalactic" % "3.1.0",
-    "org.scalatest" %% "scalatest" % "3.1.0" % "test"
+    "org.scalatest" %% "scalatest" % "3.1.0" % "test",
+    "org.scalamock" %% "scalamock" % "4.4.0" % Test
   )
 )
 
@@ -53,9 +54,6 @@ lazy val `scalene-tests` = project
   .dependsOn(scalene, `scalene-routing`)
   .settings(baseSettings)
   .settings(noPubSettings)
-  .settings(Seq(
-    libraryDependencies += "org.scalamock" %% "scalamock" % "4.4.0" % Test
-  ))
 
 val benchmarkSettings = baseSettings ++ Seq(
   libraryDependencies ++= Seq(

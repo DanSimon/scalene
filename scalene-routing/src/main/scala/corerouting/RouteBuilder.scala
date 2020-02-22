@@ -8,9 +8,9 @@ trait Route[II,O] {
   
   def vsetSize: Int
 
-  def execute(input: II, collectedFilters: List[WrappedFilter[II]], values: VSet) : Result[Deferred[O]]
+  def execute(input: II, values: VSet) : Result[Deferred[O]]
 
-  final def apply(input: II): Result[Deferred[O]] = execute(input, Nil, if (vsetSize == 0) VSet.empty else VSet(vsetSize))
+  final def apply(input: II): Result[Deferred[O]] = execute(input, if (vsetSize == 0) VSet.empty else VSet(vsetSize))
 
   def document: DocTreeNode
 
@@ -38,8 +38,8 @@ trait Route[II,O] {
     }
 
 
-    def executeFilters(input: I, prevFilters: List[WrappedFilter[I]], values: VSet): Deferred[Unit] = {
-      (prevFilters ++ filters).foldLeft[Deferred[Unit]](defer{ _ => Async.successful(())}){case (build, next) =>
+    def executeFilters(input: I, values: VSet): Deferred[Unit] = {
+      filters.foldLeft[Deferred[Unit]](defer{ _ => Async.successful(())}){case (build, next) =>
         build.flatMap {_ =>
           next.parse(input, values)
         }
@@ -122,22 +122,26 @@ trait Route[II,O] {
         val prevEx = prevRoute.executor
         val index = offset + size - 1
 
-        val (executor, cell) = next match {
+        //shallow clones are only needed for parsers, since only parsers can
+        //appear multiple times when parsing a route (if the first branch in a
+        //subroute tree fails), but a filter failure always fails the whole
+        //request so there's no need to shallow clone them
+        val (executor, cell, shallowClonedCell: CellComponent[I,O]) = next match {
           case p @ CellParser(_) => {
             val (wrapped, cell) = p.wrapped(index)
-            (RouteExecutor(prevEx.parsers :+ wrapped, prevEx.filters), cell)
+            (RouteExecutor(prevEx.parsers :+ wrapped, prevEx.filters), cell, CellPhantom(cell))
           }
           case f @ CellFilter(_) => {
             val (wrapped, cell) = f.wrapped(index)
-            (RouteExecutor(prevEx.parsers, prevEx.filters :+ wrapped), cell)
+            (RouteExecutor(prevEx.parsers, prevEx.filters :+ wrapped), cell, f)
           }
-          case CellPhantom(cell) => {
-            (RouteExecutor(prevEx.parsers, prevEx.filters), cell)
+          case c @ CellPhantom(cell) => {
+            (RouteExecutor(prevEx.parsers, prevEx.filters), cell, CellPhantom(cell))
           }
         }
         new ConstructedRoute[fuse.Out](executor) {
           def buildResult(values: VSet) = fuse.fuse(prevRoute.buildResult(values), values.get(cell))
-          def shallowClone = cons(prevRoute.shallowClone, CellPhantom(cell))
+          def shallowClone = cons(prevRoute.shallowClone, shallowClonedCell)
           def document(builder: DocType): DocType = next.document(prevRoute.document(builder))
         }
 
@@ -189,13 +193,13 @@ trait Route[II,O] {
 
         def document = ???
 
-        def execute(input: I, collectedFilters: List[WrappedFilter[I]], values: VSet) : Result[Deferred[FinalOut]] = {
+        def execute(input: I, values: VSet) : Result[Deferred[FinalOut]] = {
           //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
           var res = notFoundError
           var i = 0
           var nextInput = input
           while (i < routes.length) {
-            val next = routes(i).execute(nextInput, collectedFilters, values)
+            val next = routes(i).execute(nextInput, values)
             next match {
               case Left(err) => err.reason match {
                 case ErrorReason.NotFound   => {

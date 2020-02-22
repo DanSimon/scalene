@@ -40,8 +40,9 @@ object Main extends App {
   implicit val pool = new Pool
 
   def basicServer = {
+    import NewOps._
     val routes = Routes(
-      GET / "plaintext" to {_ => plainBody.ok},
+      GET / "plaintext" nto {_ => plainBody.ok},
       GET / "json"      to {_ => JsonRouteMessage("Hello, World!").ok}
     )
     Routing.startDetached(settings, routes)
@@ -87,8 +88,37 @@ object Main extends App {
       }
     }
 
+    class MiniRequestHead(rawData: Array[Byte], lineStarts: Array[Int]) {
+
+      val contentLength = {
+        var i = 0
+        var length = 0
+        while (i < lineStarts.length) {
+          val ch = rawData(lineStarts(i)) 
+          if (ch == 'c' || ch == 'C') {
+            length = 1 //TODO
+            i += lineStarts.length
+          }
+          i += 1
+        }
+        length
+      }
+
+      def methodUrlMatch(check: Array[Byte]): Boolean = {
+        java.util.Arrays.equals(rawData, 0, check.length, check, 0, check.length)
+      }
+
+    }
+
+    case class MiniRequest(head: MiniRequestHead, body: Array[Byte])
+
+
+
+
     var n = 0
-    val arr = new Array[Byte](1024)
+    var arr = new Array[Byte](1024)
+    var linestarts = new Array[Int](20)
+    var linestartPos = 0
     var arrPos = 0
 
     def onReadData(buffer: ReadBuffer, wopt: Option[WriteBuffer]): Unit = {
@@ -99,13 +129,21 @@ object Main extends App {
         if (b == '\n'.toByte || b == '\r'.toByte) {
           n += 1
           if (n == 4) {
-            if (java.util.Arrays.equals(arr, 0, matchUrl.length, matchUrl, 0, matchUrl.length)) {
+            n = 0
+            val b = java.util.Arrays.copyOf(arr, arrPos)
+            arrPos = 0
+            val f = java.util.Arrays.copyOf(linestarts, linestartPos)
+            linestartPos = 0
+            val miniHead = new MiniRequestHead(b, f)
+            val request = MiniRequest(miniHead, new Array(0))
+            if (request.head.methodUrlMatch(matchUrl)) {
               codec.encode(HttpResponse(ResponseCode.Ok, plainBody), wopt.get)
             } else {
               codec.encode(HttpResponse(ResponseCode.NotFound, http.Body.plain("not found")), wopt.get)
             }
-            n = 0
-            arrPos = 0
+          } else if (n == 2) {
+            linestarts(linestartPos) = arrPos
+            linestartPos += 1
           }
         } else {
           n = 0
@@ -127,7 +165,7 @@ object Main extends App {
   },new RefreshOnDemandTimeKeeper(new RealTimeKeeper) )
 
 
-  val server = basicServer//minimalCoreServer
+  val server = minimalCoreServer
   pool.join
 
 

@@ -5,7 +5,7 @@ import scalene.corerouting.AsResponse
 import org.scalatest._
 import BasicConversions._
 
-class CListTest extends WordSpec with MustMatchers {
+class SyntaxTest extends WordSpec with MustMatchers {
 
   "syntax tests" must {
     "work" in {
@@ -69,6 +69,21 @@ class CListTest extends WordSpec with MustMatchers {
 
       route2 to {str => str.toUpperCase.ok}
     }
+  }
+
+  "new ops" must {
+    "work" in {
+      import NewOps._
+
+      GET / "foo" / ![Int] nto {i => (i + 1).ok}
+
+      val x: ExactMatchPath = GET / "foo"
+
+      x nto {_  => "hello".ok}
+
+    }
+
+
   }
 
 }
