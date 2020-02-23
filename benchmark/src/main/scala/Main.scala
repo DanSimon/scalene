@@ -57,7 +57,7 @@ object Main extends App {
       }
 
       def handleRequest(request: HttpRequest): Async[HttpResponse] = {
-        if (java.util.Arrays.equals(request.firstLine, 0, matchUrl.length, matchUrl, 0, matchUrl.length)) {
+        if (java.util.Arrays.equals(request.data, 0, matchUrl.length, matchUrl, 0, matchUrl.length)) {
           Async.successful(HttpResponse(ResponseCode.Ok, plainBody))
         } else {
           Async.successful(HttpResponse(ResponseCode.NotFound, http.Body.plain("not found")))
@@ -81,7 +81,7 @@ object Main extends App {
     var wOpt: Option[WriteBuffer] = None
 
     def processRequest(request: HttpRequest): Unit = {
-      if (java.util.Arrays.equals(request.firstLine, 0, matchUrl.length, matchUrl, 0, matchUrl.length)) {
+      if (java.util.Arrays.equals(request.data, 0, matchUrl.length, matchUrl, 0, matchUrl.length)) {
         codec.encode(HttpResponse(ResponseCode.Ok, plainBody), wOpt.get)
       } else {
         codec.encode(HttpResponse(ResponseCode.NotFound, http.Body.plain("not found")), wOpt.get)
@@ -165,7 +165,7 @@ object Main extends App {
   },new RefreshOnDemandTimeKeeper(new RealTimeKeeper) )
 
 
-  val server = minimalCoreServer
+  val server = basicServer//minimalCoreServer
   pool.join
 
 

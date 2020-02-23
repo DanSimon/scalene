@@ -52,7 +52,7 @@ case class ExactMatchPath(method: HttpMethod, prefix: ConstantPrefixPath) extend
   val error = Left(ParseError.notFound(s"did not match $prefixString"))
 
   @inline final def isMatch(req: RequestContext): Boolean = {
-    Arrays.equals(req.request.firstLine, 0, bytes.length, bytes, 0, bytes.length)
+    Arrays.equals(req.request.data, 0, bytes.length, bytes, 0, bytes.length)
   }
 
   final def parse(req: RequestContext): Result[Unit] = {

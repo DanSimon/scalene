@@ -11,48 +11,53 @@ import java.util.{LinkedList, List => JList}
 class ParseException(message: String) extends Exception(message)
 
 class ParsedHeaders(
-    headers: JList[Header],
+    data: Array[Byte],
+    lineStarts: Array[Int],
     val transferEncodingOpt: Option[TransferEncoding],
     override val contentType: Option[String],
     override val contentLength: Option[Int],
     override val connection: Option[Connection]
-) extends Headers(headers) {
+) extends Headers {
 
-  def this(
-      headers: Headers,
-      transferEncodingOpt: Option[TransferEncoding],
-      contentType: Option[String],
-      contentLength: Option[Int],
-      connection: Option[Connection]
-  ) = this(headers.headers, transferEncodingOpt, contentType, contentLength, connection)
 
   override def transferEncoding =
     if (transferEncodingOpt.isDefined) transferEncodingOpt.get else TransferEncoding.Identity
 
-  /*
-  override def encode(buffer: WriteBuffer, tk: TimeKeeper) {
-    transferEncodingOpt.foreach { buffer.write(_.header.encodedLine(tk)) }
-    connection.foreach { _.header.encode(buffer) }
-    contentLength.foreach { c =>
-      Header.encodeContentLength(buffer, c)
-    }
-    super.encode(buffer)
-  }
-  */
+
+  def firstValue(name: String): Option[String] = ???
+
+  def allValues(name: String): Seq[String] = ???
+
+  def size = lineStarts.length
+
+  def toSeq = ???
+
+  def encode(buffer: WriteBuffer, timeKeeper: TimeKeeper) : Unit = {}
 
 }
 
-class Headers(private[http] val headers: JList[Header]) {
+case class ArrayHeaders(headers: Array[Header]) extends Headers {
 
-  def firstValue(name: String): Option[String] = {
-    val l = name.toLowerCase
-    toSeq.collectFirst { case x if (x.key == l) => x.value }
-  }
+  def firstValue(name: String): Option[String] = ???
 
-  def allValues(name: String): Seq[String] = {
-    val l = name.toLowerCase
-    toSeq.collect { case x if (x.key == l) => x.value }
+  def allValues(name: String): Seq[String] = ???
+
+  def size = headers.length
+
+  def toSeq = headers.toSeq
+
+  def encode(buffer: WriteBuffer, timeKeeper: TimeKeeper) : Unit = {
+    var i = 0
+    while (i < headers.length) {
+      buffer.write(headers(i).encodedLine(timeKeeper))
+    }
   }
+}
+
+trait Headers {
+
+  def firstValue(name: String): Option[String] 
+  def allValues(name: String): Seq[String] 
 
   def contentLength: Option[Int] = firstValue(Headers.ContentLength.name).map { _.toInt }
 
@@ -63,29 +68,11 @@ class Headers(private[http] val headers: JList[Header]) {
 
   def contentType: Option[String] = firstValue(Headers.ContentType.name)
 
-  def +(kv: (String, String)): Headers = {
-    val n = Header(kv._1, kv._2)
-    this + n
-  }
 
-  def +(header: Header): Headers = {
-    Headers.fromSeq(toSeq :+ header)
-  }
+  def size: Int
+  def toSeq: Seq[Header]
 
-  def size = headers.size
-
-  def toSeq: Seq[Header] = headers.toArray(Array[Header]())
-
-  def encode(buffer: WriteBuffer, timeKeeper: TimeKeeper) {
-    val it = headers.listIterator(0)
-    while (it.hasNext) {
-      buffer.write(it.next.encodedLine(timeKeeper))
-    }
-  }
-
-  def unsafeAppend(header: Header) {
-    headers.add(header)
-  }
+  def encode(buffer: WriteBuffer, timeKeeper: TimeKeeper) : Unit
 
   override def equals(that: Any): Boolean = that match {
     case that: Headers => this.toSeq.toSet == that.toSeq.toSet
@@ -122,16 +109,13 @@ object Headers {
   }
 
   def apply(hdrs: Header*): Headers = Headers.fromSeq(hdrs)
+
   def fromString(hdrs: (String, String)*): Headers =
     Headers.fromSeq(hdrs.map { case (k, v) => Header(k, v) })
 
-  def fromSeq(seq: Seq[Header]): Headers = {
-    val l = new LinkedList[Header]
-    seq.foreach(l.add)
-    new Headers(l)
-  }
-
-  val Empty = new Headers(new LinkedList)
+  def fromSeq(seq: Seq[Header]): Headers = ArrayHeaders(seq.toArray)
+  
+  val Empty = ArrayHeaders(new Array(0))
 }
 
 sealed trait TransferEncoding {

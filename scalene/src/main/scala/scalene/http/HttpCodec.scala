@@ -21,12 +21,9 @@ object HttpParsing {
 import HttpParsing._
 
 
-trait HttpMessageDecoder extends LineParser {
+trait HttpMessageDecoder {
 
-  def initSize = 100
-  val includeNewline = false
-
-  def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData)
+  def finishDecode(head: ParsedHead, body: BodyData)
 
   final val zeroFirstLine = new Array[Byte](0)
   private val NoBodyStream = BodyData.Stream(StreamBuilder(NoBodyManager))
@@ -38,62 +35,9 @@ trait HttpMessageDecoder extends LineParser {
   def currentMessageSize: Long = currentSize
 
   private var buildFirstLine = new Array[Byte](0)
-  private var buildHeaders = new LinkedList[Header]
   private var buildContentLength: Option[Int] = None
   private var buildTransferEncoding: Option[TransferEncoding] = None
   private var currentStreamManager: StreamManager = NoBodyManager
-
-  val headers = new Headers(new LinkedList[Header])
-
-  @inline
-  final def buildMessage(): Unit = {
-    val headers = new ParsedHeaders(
-      headers = buildHeaders,
-      transferEncodingOpt = buildTransferEncoding,
-      contentType = None,
-      contentLength = buildContentLength,
-      connection = None
-    )
-    val body = buildTransferEncoding match {
-      case None | Some(TransferEncoding.Identity) => if (buildContentLength.isEmpty) {
-        NoBodyStream
-      } else {
-        currentStreamManager = new BasicStreamManager(buildContentLength.get)
-        BodyData.Stream(StreamBuilder(currentStreamManager))
-      }
-      case Some(TransferEncoding.Chunked) => {
-        currentStreamManager = new ChunkedStreamManager
-        BodyData.Stream(StreamBuilder(currentStreamManager))
-      }
-    }
-
-    finishDecode(buildFirstLine,  headers, body)
-    //if the body stream was unused we have to complete it ourselves so the data is still consumed
-    currentStreamManager.setBlackHoleIfUnset()
-    currentStreamManager = NoBodyManager
-    buildHeaders = new LinkedList[Header]
-    buildFirstLine = zeroFirstLine
-    buildContentLength = None
-    buildTransferEncoding = None
-  }
-
-  //returns true if we've finished reading the header
-  @inline
-  final def onComplete(arr: Array[Byte]): Boolean = {
-    if (arr.size == 0) { //0 size is the blank newline at the end of the head
-      buildMessage()
-      true
-    } else {
-      if (buildFirstLine.length == 0) {
-        buildFirstLine = arr
-      } else {          
-        val header = arr
-        parseSpecialHeader(header)
-        buildHeaders.add(new StaticHeader(header))
-      }
-      false
-    }
-  }
 
   @inline
   final protected def parseSpecialHeader(header: Array[Byte]): Unit = {
@@ -125,15 +69,65 @@ trait HttpMessageDecoder extends LineParser {
   def endOfStream() {}
 
   //parsing stuff
-  private var parsingHead = true
+  private var rnCount = 0
+  private var dataBuild: Array[Byte] = new Array(300)
+  private var dataBuildPos: Int = 0
+  private var dataLineStarts: Array[Int] = new Array(10)
+  private var dataLineStartsPos: Int = 0
+
+  //returns true if we done
+  def parseHead(buffer: ReadBuffer): Boolean = {
+    while (buffer.buffer.hasRemaining) {
+      val b = buffer.buffer.get
+      dataBuild(dataBuildPos) = b
+      dataBuildPos += 1
+      if (b == '\n'.toByte || b == '\r'.toByte) {
+        rnCount += 1
+        if (rnCount == 4) {
+          rnCount = 0
+          val data = Arrays.copyOf(dataBuild, dataBuildPos)
+          dataBuildPos = 0
+          val lineStarts = Arrays.copyOf(dataLineStarts, dataLineStartsPos)
+          dataLineStartsPos = 0
+          val head = ParsedHead(
+            data,
+            lineStarts(0) - 2,
+            new ParsedHeaders(data, dataLineStarts, None, None, None, None)
+          )
+          val body = buildTransferEncoding match {
+            case None | Some(TransferEncoding.Identity) => if (buildContentLength.isEmpty) {
+              NoBodyStream
+            } else {
+              currentStreamManager = new BasicStreamManager(buildContentLength.get)
+              BodyData.Stream(StreamBuilder(currentStreamManager))
+            }
+            case Some(TransferEncoding.Chunked) => {
+              currentStreamManager = new ChunkedStreamManager
+              BodyData.Stream(StreamBuilder(currentStreamManager))
+            }
+          }
+
+          finishDecode(head, body)
+          //if the body stream was unused we have to complete it ourselves so the data is still consumed
+          currentStreamManager.setBlackHoleIfUnset()
+          if (body != NoBodyStream)
+            return true
+
+        } else if (rnCount == 2) {
+          dataLineStarts(dataLineStartsPos) = dataBuildPos
+          dataLineStartsPos += 1
+        }
+      } else {
+        rnCount = 0
+      }
+    }
+    false
+  }
 
   final def decode(buffer: ReadBuffer): Unit = {
     while (buffer.hasNext) {
-      while (parsingHead && buffer.hasNext) {
-        parsingHead = !parse(buffer)
-      } 
       currentSize += buffer.bytesRead
-      if (!parsingHead) {
+      if (parseHead(buffer)) {
         if (!currentStreamManager.isDone) {
           currentStreamManager.push(buffer)
           //FIXME: this is wrong
@@ -142,7 +136,6 @@ trait HttpMessageDecoder extends LineParser {
         //we have to immediately check again since it could be the end of the
         //buffer and the loop will exit
         if (currentStreamManager.isDone) {
-          parsingHead = true
           messages += 1
           currentSize = 0
           currentStreamManager.close()
@@ -206,8 +199,8 @@ class HttpServerCodec(
 ) 
 extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder  with HttpMessageEncoding[HttpResponse] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData) {
-    onDecode(new ParsedHttpRequest(firstLine, headers, Body(body, None)))
+  final def finishDecode(head: ParsedHead, body: BodyData) {
+    onDecode(new ParsedHttpRequest(head, Body(body, None)))
   }
 
 }
@@ -219,8 +212,8 @@ class HttpClientCodec(
 ) 
 extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder  with HttpMessageEncoding[HttpRequest] {
 
-  final def finishDecode(firstLine: Array[Byte], headers: Headers, body: BodyData) {
-    onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
+  final def finishDecode(head: ParsedHead, body: BodyData) {
+    //onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
   }
 
 }
