@@ -51,18 +51,14 @@ class QueryParameters(str: String) {
 }
 
 
-case class ParsedHead(data: Array[Byte], firstLineLength: Int, headers: Headers)
+//case class ParsedHead(data: Array[Byte], firstLineLength: Int, headers: Headers)
 
 //firstLine does not include newline
-class ParsedHttpRequest(val head: ParsedHead, val body: Body) extends HttpRequest {
-  import head._
+class ParsedHttpRequest(val data: Array[Byte], val firstLineLength: Int, val headers: Headers, val body: Body) extends HttpRequest {
   def urlBytes = url.getBytes
   private def urlStart = method.bytes.length + 1
   private def urlLength = firstLineLength - 9 - urlStart
   lazy val url = new String(data, urlStart, urlLength)
-
-  def headers = head.headers
-  def data = head.data
 
   def version = if (data(firstLineLength - 1) == '0'.toByte) HttpVersion.`1.0` else HttpVersion.`1.1`
   lazy val  method = {

@@ -23,10 +23,11 @@ import HttpParsing._
 
 trait HttpMessageDecoder {
 
-  def finishDecode(head: ParsedHead, body: BodyData)
+  def finishDecode(data: Array[Byte], firstLineLength: Int, headers: Headers, body: Body)
 
   final val zeroFirstLine = new Array[Byte](0)
   private val NoBodyStream = BodyData.Stream(StreamBuilder(NoBodyManager))
+  private val NoBody = Body(NoBodyStream, None)
 
   private var messages = 0L
   def messagesDecoded:Long = messages
@@ -34,9 +35,8 @@ trait HttpMessageDecoder {
   var currentSize = 0L
   def currentMessageSize: Long = currentSize
 
-  private var buildFirstLine = new Array[Byte](0)
   private var buildContentLength: Option[Int] = None
-  private var buildTransferEncoding: Option[TransferEncoding] = None
+  private var buildTransferEncoding: TransferEncoding = TransferEncoding.Identity
   private var currentStreamManager: StreamManager = NoBodyManager
 
   @inline
@@ -46,7 +46,7 @@ trait HttpMessageDecoder {
       if (buildContentLength.isEmpty && ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.ContentLength.bytes)) {
         buildContentLength = Some(trimStringToInt(header, Headers.ContentLength.bytes.length + 2))
       } else if (ParsingUtils.caseInsensitiveSubstringMatch(header, Headers.TransferEncoding.bytes)) {
-        buildTransferEncoding = Some(TransferEncoding.fromHeaderLine(header))
+        buildTransferEncoding = TransferEncoding.fromHeaderLine(header)
       }
     }
   }
@@ -89,30 +89,27 @@ trait HttpMessageDecoder {
           dataBuildPos = 0
           val lineStarts = Arrays.copyOf(dataLineStarts, dataLineStartsPos)
           dataLineStartsPos = 0
-          val head = ParsedHead(
-            data,
-            lineStarts(0) - 2,
-            new ParsedHeaders(data, dataLineStarts, None, None, None, None)
-          )
-          val body = buildTransferEncoding match {
-            case None | Some(TransferEncoding.Identity) => if (buildContentLength.isEmpty) {
-              NoBodyStream
+          val headers = new ParsedHeaders(data, dataLineStarts, buildTransferEncoding, buildContentLength)          
+          buildTransferEncoding match {
+            case TransferEncoding.Identity => if (buildContentLength.isEmpty) {
+              //no body at all, done with message              
+              finishDecode(data, lineStarts(0) - 2, headers, NoBody)
+              //we also know the next byte is a new request so no need to return yet
             } else {
               currentStreamManager = new BasicStreamManager(buildContentLength.get)
-              BodyData.Stream(StreamBuilder(currentStreamManager))
+              val body = Body(BodyData.Stream(StreamBuilder(currentStreamManager)), None)
+              finishDecode(data, lineStarts(0) - 2, headers, body)
+              currentStreamManager.setBlackHoleIfUnset()
+              return true
             }
-            case Some(TransferEncoding.Chunked) => {
+            case _ => {
               currentStreamManager = new ChunkedStreamManager
-              BodyData.Stream(StreamBuilder(currentStreamManager))
+              val body = Body(BodyData.Stream(StreamBuilder(currentStreamManager)), None)
+              finishDecode(data, lineStarts(0) - 2, headers, body)
+              currentStreamManager.setBlackHoleIfUnset()
+              return true
             }
           }
-
-          finishDecode(head, body)
-          //if the body stream was unused we have to complete it ourselves so the data is still consumed
-          currentStreamManager.setBlackHoleIfUnset()
-          if (body != NoBodyStream)
-            return true
-
         } else if (rnCount == 2) {
           dataLineStarts(dataLineStartsPos) = dataBuildPos
           dataLineStartsPos += 1
@@ -199,8 +196,8 @@ class HttpServerCodec(
 ) 
 extends Codec[HttpRequest, HttpResponse] with HttpMessageDecoder  with HttpMessageEncoding[HttpResponse] {
 
-  final def finishDecode(head: ParsedHead, body: BodyData) {
-    onDecode(new ParsedHttpRequest(head, Body(body, None)))
+  final def finishDecode(data: Array[Byte], firstLineLength: Int, headers: Headers, body: Body): Unit = {
+    onDecode(new ParsedHttpRequest(data, firstLineLength, headers, body))
   }
 
 }
@@ -212,7 +209,8 @@ class HttpClientCodec(
 ) 
 extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder  with HttpMessageEncoding[HttpRequest] {
 
-  final def finishDecode(head: ParsedHead, body: BodyData) {
+  final def finishDecode(data: Array[Byte], firstLineLength: Int, headers: Headers, body: Body): Unit = {
+    ???
     //onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
   }
 

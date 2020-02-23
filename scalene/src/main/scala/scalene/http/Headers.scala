@@ -13,16 +13,10 @@ class ParseException(message: String) extends Exception(message)
 class ParsedHeaders(
     data: Array[Byte],
     lineStarts: Array[Int],
-    val transferEncodingOpt: Option[TransferEncoding],
-    override val contentType: Option[String],
-    override val contentLength: Option[Int],
-    override val connection: Option[Connection]
+    override val transferEncoding: TransferEncoding,
+    override val contentLength: Option[Int]
+    //override val connection: Option[Connection]
 ) extends Headers {
-
-
-  override def transferEncoding =
-    if (transferEncodingOpt.isDefined) transferEncodingOpt.get else TransferEncoding.Identity
-
 
   def firstValue(name: String): Option[String] = ???
 
