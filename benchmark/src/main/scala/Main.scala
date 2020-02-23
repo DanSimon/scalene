@@ -56,11 +56,11 @@ object Main extends App {
       def onInitialize(context: RequestHandlerContext){
       }
 
-      def handleRequest(request: HttpRequest): Async[HttpResponse] = {
+      def handleRequest(request: HttpRequest): scalene.Deferred[HttpResponse] = {
         if (java.util.Arrays.equals(request.data, 0, matchUrl.length, matchUrl, 0, matchUrl.length)) {
-          Async.successful(HttpResponse(ResponseCode.Ok, plainBody))
+          scalene.Deferred.successful(HttpResponse(ResponseCode.Ok, plainBody))
         } else {
-          Async.successful(HttpResponse(ResponseCode.NotFound, http.Body.plain("not found")))
+          scalene.Deferred.successful(HttpResponse(ResponseCode.NotFound, http.Body.plain("not found")))
         }
       }
 

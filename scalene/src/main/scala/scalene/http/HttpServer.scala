@@ -34,7 +34,7 @@ object HttpServer {
   def start(settings: HttpServerSettings, requestHandlerFactory: AsyncContext => HttpRequestHandler)(implicit pool: Pool): Server = {
     val commonHeaders = (settings.commonHeaders :+ Header("Server", settings.serverName)).toArray
     val factory: AsyncContext => ServerConnectionHandler = ctx => {
-      new ServiceServer((x: HttpRequest => Unit) => 
+      new ServiceServer(ctx, (x: HttpRequest => Unit) => 
           new HttpServerCodec(x, ctx.time, commonHeaders), requestHandlerFactory(ctx), settings.maxIdleTime)
     }
     Server.start(settings.server, factory, new RefreshOnDemandTimeKeeper(new RealTimeKeeper))

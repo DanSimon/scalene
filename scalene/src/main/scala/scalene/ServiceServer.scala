@@ -7,6 +7,7 @@ import scala.util.{Failure, Success, Try}
 
 
 class ServiceServer[I,O](
+  context: AsyncContext,
   codecFactory: Codec.Factory[I,O],
   requestHandler: RequestHandler[I,O],
   val idleTimeout: Duration
@@ -17,22 +18,27 @@ class ServiceServer[I,O](
   private val pendingRequests = new LinkedList[Async[O]]
 
   private var tempWrite: Option[WriteBuffer] = None
+  private var asyncContext: Option[AsyncContext] = None
 
   final def processRequest(request: I): Unit = {
-    val async = try {
+    val deferred = try {
       requestHandler.handleRequest(request)
     } catch {
-      case e: Exception => ConstantAsync(Success(requestHandler.handleError(Some(request), e)))
+      case e: Exception => Deferred.successful(requestHandler.handleError(Some(request), e))
     }
-    if (!isStreaming && pendingRequests.isEmpty && async.result.isDefined && tempWrite.isDefined) {
-      val response = async.result.get match {
-        case Success(value) => value
-        case Failure(ex) => requestHandler.handleError(None, ex)
+    val fastWrite = if (!isStreaming && pendingRequests.isEmpty && tempWrite.isDefined) {
+      deferred match {
+        case ConstSuccessDeferred(value) => {
+          writeItem(value, tempWrite.get)
+          true
+        }
+        case _ => false
       }
-      writeItem(response, tempWrite.get)
-    } else {
+    } else false
+    if (!fastWrite) {
+      val async = deferred.resolve(context)
       pendingRequests.add(async)
-      if (pendingRequests.size == 1) {
+      if (pendingRequests.size == 1) {//TODO: this is probably wrong
         async.onComplete{_ => _handle.foreach{_.requestWrite()}}
       }
     }

@@ -21,9 +21,9 @@ object Routing {
         rctx = Some(RoutingContext(new AttachmentManager(context), context))
       }
 
-      def handleRequest(request: HttpRequest): Async[HttpResponse] = routes(new RequestContext(request, rctx.get)) match {
-        case Right(f) => f.resolve(context)
-        case Left(reason) => Async.successful(HttpResponse(reason.reason.code, http.Body.plain(reason.message)))
+      def handleRequest(request: HttpRequest): Deferred[HttpResponse] = routes(new RequestContext(request, rctx.get)) match {
+        case Right(f) => f
+        case Left(reason) => Deferred.successful(HttpResponse(reason.reason.code, http.Body.plain(reason.message)))
       }
 
       def handleError(request: Option[HttpRequest], error: Throwable) = HttpResponse(ResponseCode.Error, http.Body.plain(error.toString))

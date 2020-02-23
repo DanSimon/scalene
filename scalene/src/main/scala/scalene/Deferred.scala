@@ -33,14 +33,33 @@ trait Deferred[T] {
   def flatMap[U](f: T => Deferred[U]): Deferred[U] 
 }
 
-case class ConstantDeferred[T](async: Async[T]) extends Deferred[T] {
+case class ConstantAsyncDeferred[T](async: Async[T]) extends Deferred[T] {
 
   def resolve(context: AsyncContext): Async[T] = async
 
-  def map[U](f: T => U): Deferred[U] = ConstantDeferred(async.map(f))
+  def map[U](f: T => U): Deferred[U] = Deferred(async.map(f))
 
   def flatMap[U](f: T => Deferred[U]): Deferred[U] = defer(_ => async).flatMap(f)
 }
+
+case class ConstSuccessDeferred[T](value: T) extends Deferred[T] {
+
+  def resolve(context: AsyncContext): Async[T] = Async.successful(value)
+
+  def map[U](f: T => U): Deferred[U] = try {
+    ConstSuccessDeferred(f(value))
+  } catch {
+    case e: Exception => Deferred.failure(e)
+  }
+
+  def flatMap[U](f: T => Deferred[U]): Deferred[U] = try {
+    f(value)
+  } catch {
+    case e: Exception => Deferred.failure(e)
+  }
+
+}
+
 
 class CapturedDeferred[T](cap: AsyncContext => Async[T]) extends Deferred[T] {
 
@@ -53,9 +72,11 @@ class CapturedDeferred[T](cap: AsyncContext => Async[T]) extends Deferred[T] {
 }
 
 object Deferred {
-  def successful[T](value: T): Deferred[T] = ConstantDeferred(ConstantAsync(Success(value)))
+  def apply[T](async: Async[T]): Deferred[T] = ConstantAsyncDeferred(async)
 
-  def failure[T](error: Throwable): Deferred[T] = ConstantDeferred(ConstantAsync(Failure(error)))
+  def successful[T](value: T): Deferred[T] = ConstSuccessDeferred(value)
+
+  def failure[T](error: Throwable): Deferred[T] = Deferred(ConstantAsync(Failure(error)))
 
 }
 
