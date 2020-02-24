@@ -10,7 +10,9 @@ trait Route[II,O] {
 
   def execute(input: II, values: VSet) : Result[Deferred[O]]
 
-  final def apply(input: II): Result[Deferred[O]] = execute(input, if (vsetSize == 0) VSet.empty else VSet(vsetSize))
+  private final val myvset = if (vsetSize == 0) VSet.empty else VSet(vsetSize)
+
+  final def apply(input: II): Result[Deferred[O]] = execute(input, myvset)
 
   def document: DocTreeNode
 
@@ -185,48 +187,48 @@ trait Route[II,O] {
 
   object Routes {
 
-    def apply(_routes: Route[I, FinalOut]*): Route[I, FinalOut] = {
+    class MultiRoute(_routes: Seq[Route[I, FinalOut]]) extends Route[I, FinalOut] {
       val notFoundError: Result[Deferred[FinalOut]] = Left(ParseError.notFound("no route"))
       val routes = _routes.toArray
-      new Route[I,FinalOut] {
-        val vsetSize = routes.map{_.vsetSize}.max
+      val numRoutes = routes.length
+      val vsetSize = routes.map{_.vsetSize}.max
 
-        def document = ???
+      def document = ???
 
-        def execute(input: I, values: VSet) : Result[Deferred[FinalOut]] = {
-          //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
-          var res = notFoundError
-          var i = 0
-          var nextInput = input
-          while (i < routes.length) {
-            val next = routes(i).execute(nextInput, values)
-            next match {
-              case Left(err) => err.reason match {
-                case ErrorReason.NotFound   => {
-                  nextInput = input.cclone
-                  i += 1
-                }
-                case ErrorReason.BadRequest => {
-                  res = Left(err)
-                  i += routes.length
-                }
-                case ErrorReason.Error => {
-                  res = Left(err)
-                  i += routes.length
-                }
+      def execute(input: I, values: VSet) : Result[Deferred[FinalOut]] = {
+        //at this point we know parsing is successful up to the subroute branching, now find the correct subroute(if any)
+        var res = notFoundError
+        var i = 0
+        var nextInput = input
+        while (i < numRoutes) {
+          val next = routes(i).execute(nextInput, values)
+          next match {
+            case success @ Right(_) => {
+              res = success
+              i += numRoutes
+            }
+            case Left(err) => err.reason match {
+              case ErrorReason.NotFound   => {
+                nextInput = input.cclone
+                i += 1
               }
-              case success => {
-                res = success
+              case ErrorReason.BadRequest => {
+                res = Left(err)
+                i += routes.length
+              }
+              case ErrorReason.Error => {
+                res = Left(err)
                 i += routes.length
               }
             }
           }
-          res
         }
-
+        res
       }
 
     }
+
+    def apply(_routes: Route[I, FinalOut]*): Route[I, FinalOut] = new MultiRoute(_routes)
 
   }
 }
