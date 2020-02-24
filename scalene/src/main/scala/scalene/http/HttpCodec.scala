@@ -85,27 +85,28 @@ trait HttpMessageDecoder {
         rnCount += 1
         if (rnCount == 4) {
           rnCount = 0
-          val data = Arrays.copyOf(dataBuild, dataBuildPos)
+          val data = Arrays.copyOf(dataBuild, dataBuildPos - 2) //don't include empty line
           dataBuildPos = 0
-          val lineStarts = Arrays.copyOf(dataLineStarts, dataLineStartsPos)
+          val lineStarts = if (dataLineStartsPos == 1) new Array[Int](0) else Arrays.copyOf(dataLineStarts, dataLineStartsPos - 1)
+          val firstLineLength = if (lineStarts.length == 0) data.length - 2 else lineStarts(0) - 2
           dataLineStartsPos = 0
-          val headers = new ParsedHeaders(data, dataLineStarts, buildTransferEncoding, buildContentLength)          
+          val headers = new ParsedHeaders(data, lineStarts, buildTransferEncoding, buildContentLength)          
           buildTransferEncoding match {
             case TransferEncoding.Identity => if (buildContentLength.isEmpty) {
               //no body at all, done with message              
-              finishDecode(data, lineStarts(0) - 2, headers, NoBody)
+              finishDecode(data, firstLineLength, headers, NoBody)
               //we also know the next byte is a new request so no need to return yet
             } else {
               currentStreamManager = new BasicStreamManager(buildContentLength.get)
               val body = Body(BodyData.Stream(StreamBuilder(currentStreamManager)), None)
-              finishDecode(data, lineStarts(0) - 2, headers, body)
+              finishDecode(data, firstLineLength, headers, body)
               currentStreamManager.setBlackHoleIfUnset()
               return true
             }
             case _ => {
               currentStreamManager = new ChunkedStreamManager
               val body = Body(BodyData.Stream(StreamBuilder(currentStreamManager)), None)
-              finishDecode(data, lineStarts(0) - 2, headers, body)
+              finishDecode(data, firstLineLength, headers, body)
               currentStreamManager.setBlackHoleIfUnset()
               return true
             }
@@ -210,8 +211,8 @@ class HttpClientCodec(
 extends Codec[HttpResponse, HttpRequest] with HttpMessageDecoder  with HttpMessageEncoding[HttpRequest] {
 
   final def finishDecode(data: Array[Byte], firstLineLength: Int, headers: Headers, body: Body): Unit = {
-    ???
-    //onDecode(new ParsedHttpResponse(firstLine, headers, Body(body, None)))
+    val firstLine = Arrays.copyOf(data, firstLineLength)
+    onDecode(new ParsedHttpResponse(firstLine, headers, body))
   }
 
 }

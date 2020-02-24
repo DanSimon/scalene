@@ -25,7 +25,7 @@ class ServerTest extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   class TestHandler extends ServerConnectionHandler {
     def onInitialize(env: AsyncContext){}
-    def onReadData(buffer: ReadBuffer){}
+    def onReadData(buffer: ReadBuffer, wropt: Option[WriteBuffer]){}
     def onWriteData(buffer: WriteBuffer): Boolean = false
     def onConnected(handle: ConnectionHandle){}
     def onDisconnected(reason: DisconnectReason){}

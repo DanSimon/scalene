@@ -6,8 +6,6 @@ package scalene.http
 import scalene._
 import scalene.util._
 
-import java.util.{LinkedList, List => JList}
-
 class ParseException(message: String) extends Exception(message)
 
 class ParsedHeaders(
@@ -18,13 +16,22 @@ class ParsedHeaders(
     //override val connection: Option[Connection]
 ) extends Headers {
 
-  def firstValue(name: String): Option[String] = ???
-
-  def allValues(name: String): Seq[String] = ???
-
   def size = lineStarts.length
 
-  def toSeq = ???
+  def toSeq = {
+    var i = 0
+    val headers = new Array[Header](lineStarts.length)
+    while (i < lineStarts.length) {
+      val end = if (i + 1 < lineStarts.length) lineStarts(i + 1) else data.length
+      val line = new String(data, lineStarts(i), end - lineStarts(i) - 2)
+      val split = line.split(":")
+      headers(i) = Header(split(0), split(1))
+      i += 1
+    }
+    headers
+  }
+
+
 
   def encode(buffer: WriteBuffer, timeKeeper: TimeKeeper) : Unit = {}
 
@@ -32,9 +39,6 @@ class ParsedHeaders(
 
 case class ArrayHeaders(headers: Array[Header]) extends Headers {
 
-  def firstValue(name: String): Option[String] = ???
-
-  def allValues(name: String): Seq[String] = ???
 
   def size = headers.length
 
@@ -50,8 +54,9 @@ case class ArrayHeaders(headers: Array[Header]) extends Headers {
 
 trait Headers {
 
-  def firstValue(name: String): Option[String] 
-  def allValues(name: String): Seq[String] 
+  def firstValue(name: String): Option[String] = toSeq.find{_.key == name}.map{_.value}
+
+  def allValues(name: String): Seq[String] = toSeq.filter{_.key == name}.map{_.value}
 
   def contentLength: Option[Int] = firstValue(Headers.ContentLength.name).map { _.toInt }
 
