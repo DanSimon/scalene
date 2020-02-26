@@ -80,6 +80,19 @@ object ExactMatchPath {
 
       def document = ???
     }
+
+    override def constComplete(m: ExactMatchPath, const: HttpResponse) = new Route[RequestContext, HttpResponse] {
+      val response = Right(Deferred.successful(const))
+      def execute(input: RequestContext, vset: VSet) = if (m.isMatch(input)) {
+        response
+      } else {
+        m.error
+      }
+
+      val vsetSize = 0
+
+      def document = ???
+    }
   }
 }
 

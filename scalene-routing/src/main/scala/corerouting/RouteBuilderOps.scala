@@ -162,10 +162,13 @@ trait RouteBuilderOpsContainer[I <: Clonable[I], FinalOut] { self: RoutingSuite[
 
     implicit class CompletionJoinerOps[T, O](thing: T)(implicit joiner: CompletionJoiner[T, O]) {
       def nto(completion: O => FinalOut): Route[I, FinalOut] = joiner.complete(thing, completion)
+      def nas(const: FinalOut): Route[I, FinalOut] = joiner.constComplete(thing, const)
     }
 
     trait CompletionJoiner[T, O] {
       def complete(builder: T, completion: O => FinalOut): Route[I, FinalOut]
+
+      def constComplete(builder: T, const: FinalOut): Route[I, FinalOut] = complete(builder, _ => const)
     }
 
     object CompletionJoiner {
